@@ -1,0 +1,29 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.spec
+*.egg-info/
+
+# Environments
+.env
+venv/
+env/
+.venv/
+
+# IDEs
+.vs/
+.idea/
+.vscode/
+
+# Database
+*.sqlite3
+*.db
+survey.db
+
+# OS generated files
+.DS_Store
+Thumbs.db
