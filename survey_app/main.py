@@ -10,7 +10,7 @@ def main():
     if sys.platform == 'win32':
         import ctypes
         try:
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ccs.surveyapp.app.1.0.5")
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ccs.surveyapp.app.1.0.7")
         except Exception:
             pass
 

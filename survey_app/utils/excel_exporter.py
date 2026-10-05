@@ -80,7 +80,7 @@ def _format_sheet(ws, session: Session, template: Template, mode: str):
             
             display_value = raw_answer
             if mode == "numeric" and raw_answer:
-                if question.question_type in (QuestionType.DEMOGRAPHIC_SINGLE, QuestionType.LIKERT):
+                if question.question_type in (QuestionType.DEMOGRAPHIC_SINGLE, QuestionType.LIKERT, QuestionType.DEMOGRAPHIC_SINGLE_OTHER):
                     # إيجاد ترتيب الإجابة (1-based)
                     try:
                         idx = question.answers.index(raw_answer)

@@ -41,9 +41,9 @@ class Question:
     def get_type_label(self) -> str:
         labels = {
             QuestionType.GENERAL: "عام",
-            QuestionType.DEMOGRAPHIC_SINGLE: "ديموغرافي (واحدة)",
-            QuestionType.DEMOGRAPHIC_MULTIPLE: "ديموغرافي (متعددة)",
+            QuestionType.DEMOGRAPHIC_SINGLE: "ديموغرافي (إجابة واحدة)",
+            QuestionType.DEMOGRAPHIC_MULTIPLE: "ديموغرافي (إجابات متعددة)",
             QuestionType.LIKERT: "ليكرت",
-            QuestionType.DEMOGRAPHIC_SINGLE_OTHER: "ديموغرافي (مع أخرى)",
+            QuestionType.DEMOGRAPHIC_SINGLE_OTHER: "ديموغرافي (إجابة واحدة + أخرى)",
         }
         return labels.get(self.question_type, "غير معروف")

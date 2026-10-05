@@ -90,8 +90,8 @@ class AnswersCellWidget(QWidget):
                 item_layout.setSpacing(4)
                 
                 # تلوين حسب نوع السؤال
-                bg_color = "#FFF9C4" if q.question_type == QuestionType.LIKERT else "#E8F5E9" if q.question_type == QuestionType.DEMOGRAPHIC_SINGLE else "#E3F2FD"
-                border_color = "#FFE082" if q.question_type == QuestionType.LIKERT else "#C8E6C9" if q.question_type == QuestionType.DEMOGRAPHIC_SINGLE else "#BBDEFB"
+                bg_color = "#FFF9C4" if q.question_type == QuestionType.LIKERT else "#E8F5E9" if q.question_type in (QuestionType.DEMOGRAPHIC_SINGLE, QuestionType.DEMOGRAPHIC_SINGLE_OTHER) else "#E3F2FD"
+                border_color = "#FFE082" if q.question_type == QuestionType.LIKERT else "#C8E6C9" if q.question_type in (QuestionType.DEMOGRAPHIC_SINGLE, QuestionType.DEMOGRAPHIC_SINGLE_OTHER) else "#BBDEFB"
                 item_widget.setStyleSheet(
                     f"background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 4px;"
                 )
@@ -321,10 +321,10 @@ class ReviewView(QWidget):
             combo = QComboBox()
             combo.addItems([
                 "عام",
-                "ديموغرافي (واحدة)",
-                "ديموغرافي (متعددة)",
+                "ديموغرافي (إجابة واحدة)",
+                "ديموغرافي (إجابات متعددة)",
                 "ليكرت",
-                "ديموغرافي (مع أخرى)"
+                "ديموغرافي (إجابة واحدة + أخرى)"
             ])
             combo.setCurrentIndex(int(q.question_type))
             combo.currentIndexChanged.connect(
@@ -353,7 +353,7 @@ class ReviewView(QWidget):
                 cell_widget = AnswersCellWidget(
                     row_idx=i,
                     q=q,
-                    edit_callback=lambda row=i, question=q: self._edit_answers(row, question),
+                    edit_callback=lambda row=i, question=q: self._edit_question(row, question),
                     delete_branch_callback=self._delete_branching_rule,
                     scale_picker_widget=scale_picker,
                     parent=self
@@ -363,7 +363,7 @@ class ReviewView(QWidget):
                 cell_widget = AnswersCellWidget(
                     row_idx=i,
                     q=q,
-                    edit_callback=lambda row=i, question=q: self._edit_answers(row, question),
+                    edit_callback=lambda row=i, question=q: self._edit_question(row, question),
                     delete_branch_callback=self._delete_branching_rule,
                     parent=self
                 )
@@ -398,6 +398,11 @@ class ReviewView(QWidget):
         q.question_type = QuestionType(type_idx)
         if type_idx == 0:  # عام
             q.answers = ["text"]
+        elif type_idx in (1, 2, 4) and (not q.answers or q.answers in [["text"], ["paragraph"], ["number"], ["date"], ["time"]]):
+            if type_idx == 4:
+                q.answers = ["خيار 1", "خيار 2", "أخرى"]
+            else:
+                q.answers = ["خيار 1", "خيار 2"]
         
         # مسح أي تفرعات تالفة قد لا تناسب النوع الجديد
         q.branching_rules = {}
@@ -422,7 +427,8 @@ class ReviewView(QWidget):
         
         edit_btn = QPushButton("✎")
         edit_btn.setFixedSize(28, 28)
-        edit_btn.clicked.connect(lambda: self._edit_answers(row, q))
+        edit_btn.setToolTip("تعديل السؤال ونوعه وإجاباته")
+        edit_btn.clicked.connect(lambda: self._edit_question(row, q))
         layout.addWidget(edit_btn)
         
         return container
@@ -446,12 +452,9 @@ class ReviewView(QWidget):
     def _on_cell_double_clicked(self, row: int, col: int):
         if col == 0 and row < len(self.template.questions):
             self._reorder_question_prompt(row)
-        elif col == 3 and row < len(self.template.questions):
+        elif col in (1, 3) and row < len(self.template.questions):
             q = self.template.questions[row]
-            if q.question_type == QuestionType.GENERAL:
-                self._edit_general_subtype(row, q)
-            else:
-                self._edit_answers(row, q)
+            self._edit_question(row, q)
 
     def _reorder_question_prompt(self, current_row: int):
         current_num = current_row + 1
@@ -478,45 +481,11 @@ class ReviewView(QWidget):
             self._populate_table()
             self.table.selectRow(target_row)
 
-    def _edit_general_subtype(self, row: int, q: Question):
-        subtypes = [
-            ("نص حر (سطر واحد)", "text"),
-            ("فقرة (نص متعدد الأسطر)", "paragraph"),
-            ("رقم (أرقام فقط)", "number"),
-            ("تاريخ (يوم/شهر/سنة)", "date"),
-            ("وقت (ساعة:دقيقة)", "time")
-        ]
-        current_subtype = q.answers[0] if q.answers else "text"
-        current_idx = 0
-        for idx, (_, val) in enumerate(subtypes):
-            if val == current_subtype:
-                current_idx = idx
-                break
-                
-        item, ok = QInputDialog.getItem(
-            self, "تقييد الإجابة",
-            "اختر نوع التقييد للإجابة:",
-            [name for name, _ in subtypes],
-            current_idx, False
-        )
-        if ok and item:
-            selected_val = next(val for name, val in subtypes if name == item)
-            q.answers = [selected_val]
-            subtypes_ar = {
-                "text": "نص حر",
-                "paragraph": "فقرة",
-                "number": "رقم",
-                "date": "تاريخ",
-                "time": "وقت"
-            }
-            self.table.item(row, 3).setText(f"تقييد: {subtypes_ar.get(selected_val, 'نص حر')}")
-
-    def _edit_answers(self, row: int, q: Question):
-        dialog = AnswersEditDialog(q, self)
+    def _edit_question(self, row: int, q: Question):
+        self._sync_from_table()
+        dialog = EditQuestionDialog(q, self.template, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            q.answers = dialog.get_answers()
-            # إزالة أي قواعد تفريع لإجابات تم حذفها
-            q.branching_rules = {ans: target for ans, target in q.branching_rules.items() if ans in q.answers}
+            dialog.apply_to_question(q)
             self._populate_table()
 
     def _set_branching_rule(self, source_q_idx: int, answer_text: str, target_q_idx: int):
@@ -837,7 +806,8 @@ class AddQuestionDialog(QDialog):
             "عام (نص حر)",
             "ديموغرافي (إجابة واحدة)",
             "ديموغرافي (إجابات متعددة)",
-            "ليكرت (مقياس)"
+            "ليكرت (مقياس)",
+            "ديموغرافي (إجابة واحدة + أخرى)"
         ])
         self.type_combo.currentIndexChanged.connect(self._on_type_changed)
         layout.addWidget(self.type_combo)
@@ -870,7 +840,8 @@ class AddQuestionDialog(QDialog):
         manual = QWidget()
         m_layout = QVBoxLayout(manual)
         m_layout.setContentsMargins(0, 10, 0, 0)
-        m_layout.addWidget(QLabel("خيارات الإجابة (واحد في كل سطر):"))
+        self.manual_lbl = QLabel("خيارات الإجابة (واحد في كل سطر):")
+        m_layout.addWidget(self.manual_lbl)
         self.manual_edit = QTextEdit()
         self.manual_edit.setTabChangesFocus(True)
         m_layout.addWidget(self.manual_edit)
@@ -905,8 +876,14 @@ class AddQuestionDialog(QDialog):
     def _on_type_changed(self, index):
         if index == 0: # عام
             self.ans_stack.setCurrentIndex(0)
-        elif index in (1, 2): # ديموغرافي
+        elif index in (1, 2, 4): # ديموغرافي
             self.ans_stack.setCurrentIndex(1)
+            if index == 4:
+                self.manual_lbl.setText("خيارات الإجابة (الخيار الأخير سيعامل كخيار مفتوح/أخرى):")
+                if not self.manual_edit.toPlainText().strip():
+                    self.manual_edit.setPlainText("خيار 1\nخيار 2\nأخرى")
+            else:
+                self.manual_lbl.setText("خيارات الإجابة (واحد في كل سطر):")
         elif index == 3: # ليكرت
             self.ans_stack.setCurrentIndex(2)
 
@@ -924,7 +901,7 @@ class AddQuestionDialog(QDialog):
             return
         
         idx = self.type_combo.currentIndex()
-        if idx in (1, 2) and not self.manual_edit.toPlainText().strip():
+        if idx in (1, 2, 4) and not self.manual_edit.toPlainText().strip():
             QMessageBox.warning(self, "تنبيه", "يرجى إدخال خيارات الإجابة.")
             return
         
@@ -944,7 +921,7 @@ class AddQuestionDialog(QDialog):
         if qtype == QuestionType.GENERAL:
             subtype = self.general_subtype_combo.currentData() or "text"
             q.answers = [subtype]
-        elif qtype in (QuestionType.DEMOGRAPHIC_SINGLE, QuestionType.DEMOGRAPHIC_MULTIPLE):
+        elif qtype in (QuestionType.DEMOGRAPHIC_SINGLE, QuestionType.DEMOGRAPHIC_MULTIPLE, QuestionType.DEMOGRAPHIC_SINGLE_OTHER):
             q.answers = [l.strip() for l in self.manual_edit.toPlainText().splitlines() if l.strip()]
         elif qtype == QuestionType.LIKERT:
             scale_id = self.scale_combo.currentData()
@@ -961,31 +938,169 @@ class AddQuestionDialog(QDialog):
 from models.template import LikertScale
 
 
-class AnswersEditDialog(QDialog):
-    def __init__(self, question: Question, parent=None):
+class EditQuestionDialog(QDialog):
+    def __init__(self, question: Question, template: Template, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"تعديل إجابات: {question.text}")
-        self.setMinimumSize(400, 350)
+        self.question = question
+        self.template = template
+        self.setWindowTitle(f"تعديل السؤال: {question.text}")
+        self.setMinimumSize(520, 480)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self._build_ui()
 
+    def _build_ui(self):
         layout = QVBoxLayout(self)
 
-        lbl = QLabel("أدخل الإجابات (إجابة واحدة في كل سطر):")
-        layout.addWidget(lbl)
-
+        # نص السؤال
+        layout.addWidget(QLabel("نص السؤال:"))
         self.text_edit = QTextEdit()
         self.text_edit.setTabChangesFocus(True)
-        self.text_edit.setPlainText("\n".join(question.answers))
+        self.text_edit.setFixedHeight(60)
+        self.text_edit.setPlainText(self.question.text)
         layout.addWidget(self.text_edit)
+
+        # نوع السؤال
+        layout.addWidget(QLabel("نوع السؤال:"))
+        self.type_combo = QComboBox()
+        self.type_combo.addItems([
+            "عام (نص حر)",
+            "ديموغرافي (إجابة واحدة)",
+            "ديموغرافي (إجابات متعددة)",
+            "ليكرت (مقياس)",
+            "ديموغرافي (إجابة واحدة + أخرى)"
+        ])
+        self.type_combo.setCurrentIndex(int(self.question.question_type))
+        self.type_combo.currentIndexChanged.connect(self._on_type_changed)
+        layout.addWidget(self.type_combo)
+
+        # منطقة الإجابات (Stack)
+        self.ans_stack = QStackedWidget()
+
+        # 0: خيارات التقييد (للعام)
+        general_opts = QWidget()
+        g_layout = QVBoxLayout(general_opts)
+        g_layout.setContentsMargins(0, 10, 0, 0)
+        g_layout.addWidget(QLabel("تقييد الإجابة (نوع الإدخال المتوقع):"))
+        self.general_subtype_combo = QComboBox()
+        self.general_subtype_combo.addItem("نص حر (سطر واحد)", "text")
+        self.general_subtype_combo.addItem("فقرة (نص متعدد الأسطر)", "paragraph")
+        self.general_subtype_combo.addItem("رقم (أرقام فقط)", "number")
+        self.general_subtype_combo.addItem("تاريخ (يوم/شهر/سنة)", "date")
+        self.general_subtype_combo.addItem("وقت (ساعة:دقيقة)", "time")
+
+        current_subtype = self.question.answers[0] if self.question.is_general and self.question.answers else "text"
+        for idx in range(self.general_subtype_combo.count()):
+            if self.general_subtype_combo.itemData(idx) == current_subtype:
+                self.general_subtype_combo.setCurrentIndex(idx)
+                break
+        g_layout.addWidget(self.general_subtype_combo)
+        self.ans_stack.addWidget(general_opts)
+
+        # 1: إدخال يدوي (للديموغرافي)
+        manual = QWidget()
+        m_layout = QVBoxLayout(manual)
+        m_layout.setContentsMargins(0, 10, 0, 0)
+        self.manual_lbl = QLabel("خيارات الإجابة (واحد في كل سطر):")
+        m_layout.addWidget(self.manual_lbl)
+        self.manual_edit = QTextEdit()
+        self.manual_edit.setTabChangesFocus(True)
+        if not self.question.is_general and self.question.question_type != QuestionType.LIKERT:
+            self.manual_edit.setPlainText("\n".join(self.question.answers))
+        elif self.question.question_type == QuestionType.LIKERT:
+            self.manual_edit.setPlainText("\n".join(self.question.answers))
+        m_layout.addWidget(self.manual_edit)
+        self.ans_stack.addWidget(manual)
+
+        # 2: اختيار مقياس (لليكرت)
+        likert = QWidget()
+        l_layout = QVBoxLayout(likert)
+        l_layout.setContentsMargins(0, 10, 0, 0)
+        l_layout.addWidget(QLabel("اختر مقياس ليكرت:"))
+        self.scale_combo = QComboBox()
+        for scale in self.template.likert_scales:
+            self.scale_combo.addItem(scale.name, scale.id or id(scale))
+            if self.question.likert_scale_id == scale.id or (self.question.likert_scale_id == 0 and self.question.answers == scale.answers):
+                self.scale_combo.setCurrentIndex(self.scale_combo.count() - 1)
+        l_layout.addWidget(self.scale_combo)
+
+        btn_manage = QPushButton("⚙ إدارة المقاييس...")
+        btn_manage.clicked.connect(self._manage_scales)
+        l_layout.addWidget(btn_manage)
+        self.ans_stack.addWidget(likert)
+
+        layout.addWidget(self.ans_stack)
+
+        # تحديث المكدس حسب النوع الأولي
+        self._on_type_changed(int(self.question.question_type))
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
             QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.accepted.connect(self.accept)
+        buttons.accepted.connect(self._validate_and_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-    def get_answers(self):
-        text = self.text_edit.toPlainText()
-        return [line.strip() for line in text.splitlines() if line.strip()]
+    def _on_type_changed(self, index):
+        if index == 0:  # عام
+            self.ans_stack.setCurrentIndex(0)
+        elif index in (1, 2, 4):  # ديموغرافي
+            self.ans_stack.setCurrentIndex(1)
+            if index == 4:
+                self.manual_lbl.setText("خيارات الإجابة (الخيار الأخير سيعامل كخيار مفتوح/أخرى):")
+                if not self.manual_edit.toPlainText().strip():
+                    self.manual_edit.setPlainText("خيار 1\nخيار 2\nأخرى")
+            else:
+                self.manual_lbl.setText("خيارات الإجابة (واحد في كل سطر):")
+                if not self.manual_edit.toPlainText().strip():
+                    self.manual_edit.setPlainText("خيار 1\nخيار 2")
+        elif index == 3:  # ليكرت
+            self.ans_stack.setCurrentIndex(2)
+
+    def _manage_scales(self):
+        dialog = LikertScalesManagerDialog(self.template, self)
+        dialog.exec()
+        self.scale_combo.clear()
+        for scale in self.template.likert_scales:
+            self.scale_combo.addItem(scale.name, scale.id or id(scale))
+
+    def _validate_and_accept(self):
+        if not self.text_edit.toPlainText().strip():
+            QMessageBox.warning(self, "تنبيه", "يرجى إدخال نص السؤال.")
+            return
+
+        idx = self.type_combo.currentIndex()
+        if idx in (1, 2, 4) and not self.manual_edit.toPlainText().strip():
+            QMessageBox.warning(self, "تنبيه", "يرجى إدخال خيارات الإجابة.")
+            return
+
+        if idx == 3 and self.scale_combo.count() == 0:
+            QMessageBox.warning(self, "تنبيه", "لا توجد مقاييس ليكرت معرفة. يرجى إضافة مقياس أولاً.")
+            return
+
+        self.accept()
+
+    def apply_to_question(self, q: Question):
+        q.text = self.text_edit.toPlainText().strip()
+        new_qtype = QuestionType(self.type_combo.currentIndex())
+        old_qtype = q.question_type
+        q.question_type = new_qtype
+
+        if new_qtype == QuestionType.GENERAL:
+            subtype = self.general_subtype_combo.currentData() or "text"
+            q.answers = [subtype]
+            q.likert_scale_id = 0
+            q.branching_rules = {}
+        elif new_qtype in (QuestionType.DEMOGRAPHIC_SINGLE, QuestionType.DEMOGRAPHIC_MULTIPLE, QuestionType.DEMOGRAPHIC_SINGLE_OTHER):
+            q.answers = [l.strip() for l in self.manual_edit.toPlainText().splitlines() if l.strip()]
+            q.likert_scale_id = 0
+            # تنظيف التفرعات غير المطابقة
+            q.branching_rules = {ans: target for ans, target in q.branching_rules.items() if ans in q.answers}
+        elif new_qtype == QuestionType.LIKERT:
+            scale_id = self.scale_combo.currentData()
+            for scale in self.template.likert_scales:
+                if scale.id == scale_id or id(scale) == scale_id:
+                    q.likert_scale_id = scale.id or 0
+                    q.answers = list(scale.answers)
+                    break
+            q.branching_rules = {ans: target for ans, target in q.branching_rules.items() if ans in q.answers}

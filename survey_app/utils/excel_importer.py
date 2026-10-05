@@ -67,9 +67,9 @@ def import_template_from_excel(file_path: str) -> Tuple[Template, List[str]]:
             questions.append(q)
             continue
 
-        # آخر عنصر هو رقم النوع إذا كان رقماً صحيحاً 1/2/3
+        # آخر عنصر هو رقم النوع إذا كان رقماً صحيحاً 1/2/3/4
         last = str(rest[-1]).strip()
-        if last in ("1", "2", "3"):
+        if last in ("1", "2", "3", "4"):
             type_num = int(last)
             answer_values = [str(v).strip() for v in rest[:-1] if str(v).strip()]
         else:

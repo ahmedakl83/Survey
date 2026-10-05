@@ -597,6 +597,9 @@ class EntryView(QWidget):
             pass
 
     def _render_single_other_input(self, layout, q: Question, current: str, q_idx: int):
+        if not q.answers:
+            q.answers = ["خيار 1", "أخرى"]
+
         num_frame = QFrame()
         num_frame.setStyleSheet(
             "QFrame { background-color: #F0F7FF; border-radius: 8px; border: 1.5px solid #90CAF9; }"
@@ -634,23 +637,33 @@ class EntryView(QWidget):
         self._radio_group.setExclusive(True)
         
         self._other_text_input = QLineEdit()
-        self._other_text_input.setPlaceholderText("اكتب الإجابة هنا...")
-        self._other_text_input.setStyleSheet("font-size: 14px; padding: 6px; border: 1px solid #CFD8DC; border-radius: 4px;")
+        self._other_text_input.setPlaceholderText("اكتب الإجابة الحرة هنا...")
+        self._other_text_input.setStyleSheet(
+            "QLineEdit { font-size: 14px; padding: 6px 10px; border: 1.5px solid #1565C0; border-radius: 6px; background: white; color: #1a1a2e; }"
+            "QLineEdit:disabled { background: #F5F5F5; border-color: #CFD8DC; color: #9E9E9E; }"
+        )
         self._other_text_input.setEnabled(False)
         self._other_text_input.returnPressed.connect(lambda: self._confirm_other_text(q, q_idx))
         
         is_other_selected = False
-        if current and current not in q.answers[:-1]:
-            is_other_selected = True
+        if current:
+            if current in q.answers[:-1]:
+                is_other_selected = False
+            else:
+                is_other_selected = True
 
         for i, ans in enumerate(q.answers, start=1):
             is_last = (i == len(q.answers))
             btn_layout = QHBoxLayout()
             btn_layout.setContentsMargins(0, 0, 0, 0)
+            btn_layout.setSpacing(10)
             
             btn = QRadioButton(f"{i}.  {ans}")
             btn.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-            btn.setStyleSheet("font-size: 14px; padding: 4px;")
+            btn.setStyleSheet(
+                "QRadioButton { font-size: 14px; padding: 6px; }"
+                "QRadioButton:checked { font-weight: bold; color: #1565C0; }"
+            )
             
             if is_last:
                 btn.setChecked(is_other_selected)
@@ -662,7 +675,7 @@ class EntryView(QWidget):
                 btn_layout.addWidget(btn)
                 btn_layout.addWidget(self._other_text_input, 1)
                 
-                btn.clicked.connect(lambda checked, btn=btn: self._on_other_radio_clicked(btn))
+                btn.clicked.connect(lambda checked, b=btn: self._on_other_radio_clicked(b))
             else:
                 btn.setChecked(current == ans)
                 btn_layout.addWidget(btn)
@@ -682,24 +695,27 @@ class EntryView(QWidget):
         btn_confirm.clicked.connect(lambda: self._confirm_other_text(q, q_idx))
         layout.addWidget(btn_confirm)
 
-        QTimer.singleShot(0, self._num_input.setFocus)
+        if is_other_selected and current:
+            QTimer.singleShot(0, self._other_text_input.setFocus)
+        else:
+            QTimer.singleShot(0, self._num_input.setFocus)
         
     def _on_other_radio_clicked(self, btn):
         btn.setChecked(True)
+        self._other_text_input.setEnabled(True)
         self._other_text_input.setFocus()
+        self._other_text_input.selectAll()
         
     def _confirm_other_text(self, q: Question, q_idx: int):
         btn = self._radio_group.checkedButton()
-        if not btn:
-            return
-            
-        btn_id = self._radio_group.id(btn)
+        btn_id = self._radio_group.id(btn) if btn else len(q.answers)
+        
         if btn_id == len(q.answers):
             text = self._other_text_input.text().strip()
             if not text:
-                text = q.answers[-1]
+                text = q.answers[-1] if q.answers else "أخرى"
             self._confirm_answer(q, text, q_idx)
-        else:
+        elif 1 <= btn_id <= len(q.answers):
             self._confirm_answer(q, q.answers[btn_id - 1], q_idx)
             
     def _confirm_by_number_other(self, q: Question, num_text: str, q_idx: int):
@@ -710,7 +726,9 @@ class EntryView(QWidget):
                 if btn:
                     btn.setChecked(True)
                 if num == len(q.answers):
+                    self._other_text_input.setEnabled(True)
                     self._other_text_input.setFocus()
+                    self._other_text_input.selectAll()
                 else:
                     self._confirm_answer(q, q.answers[num - 1], q_idx)
             else:
