@@ -30,7 +30,7 @@ PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-ShowLanguageDialog=no
+ShowLanguageDialog=auto
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName} v{#AppVersion}
 VersionInfoVersion={#AppVersion}
@@ -42,10 +42,13 @@ MinVersion=10.0
 
 [Languages]
 Name: "arabic"; MessagesFile: "compiler:Languages\Arabic.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "إنشاء اختصار على سطح المكتب"; GroupDescription: "اختصارات إضافية:"; Flags: unchecked
-Name: "quicklaunchicon"; Description: "إنشاء اختصار في شريط المهام السريع"; GroupDescription: "اختصارات إضافية:"; Flags: unchecked; OnlyBelowVersion: 6.1
+Name: "desktopicon"; Description: "إنشاء اختصار على سطح المكتب"; GroupDescription: "اختصارات إضافية:"; Flags: unchecked; Languages: arabic
+Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked; Languages: english
+Name: "quicklaunchicon"; Description: "إنشاء اختصار في شريط المهام السريع"; GroupDescription: "اختصارات إضافية:"; Flags: unchecked; OnlyBelowVersion: 6.1; Languages: arabic
+Name: "quicklaunchicon"; Description: "Create a Quick Launch shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked; OnlyBelowVersion: 6.1; Languages: english
 
 [Files]
 Source: "{#DistDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -53,12 +56,14 @@ Source: "{#DistDir}\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversi
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\{#AppExeName}"
-Name: "{group}\إلغاء تثبيت {#AppName}"; Filename: "{uninstallexe}"
+Name: "{group}\إلغاء تثبيت {#AppName}"; Filename: "{uninstallexe}"; Languages: arabic
+Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"; Languages: english
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon; IconFilename: "{app}\{#AppExeName}"
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: quicklaunchicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "تشغيل {#AppName} الآن"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "تشغيل {#AppName} الآن"; Flags: nowait postinstall skipifsilent; Languages: arabic
+Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName} now"; Flags: nowait postinstall skipifsilent; Languages: english
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

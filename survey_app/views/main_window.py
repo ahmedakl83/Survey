@@ -1,29 +1,35 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QStackedWidget, QVBoxLayout,
-    QStatusBar, QMessageBox
+    QStatusBar, QApplication
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QIcon
 
 from database.db_manager import DatabaseManager
-from views.styles import APP_STYLESHEET
+from views.styles import get_app_stylesheet
 from views.home_view import HomeView
 from views.review_view import ReviewView
 from views.entry_view import EntryView
 from views.results_view import ResultsView
 from views.templates_view import TemplatesView
 from views.statistics_view import StatisticsView
+from utils.translator import tr, set_language, get_language, is_rtl, get_layout_direction
 
 
 class MainWindow(QMainWindow):
     def __init__(self, db: DatabaseManager):
         super().__init__()
         self.db = db
+
+        # تحميل اللغة المحفوظة
+        saved_lang = self.db.get_setting("language", "ar")
+        set_language(saved_lang, self.db)
+
         from build_info import APP_VERSION
-        self.setWindowTitle(f"تفريغ الاستبيانات - الإصدار {APP_VERSION}")
+        self.setWindowTitle(tr("app_title", version=APP_VERSION))
         self.setMinimumSize(1024, 680)
         self.resize(1280, 800)
-        self.setStyleSheet(APP_STYLESHEET)
+        self.setLayoutDirection(get_layout_direction())
+        self.setStyleSheet(get_app_stylesheet(is_rtl()))
 
         # حالة الحفظ
         self._save_status_timer = QTimer(self)
@@ -60,58 +66,95 @@ class MainWindow(QMainWindow):
         # شريط الحالة
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("جاهز")
+        self.status_bar.showMessage(tr("ready"))
 
         # الشاشة الافتراضية
         self.show_home()
+
+    # ─── تبديل اللغة ──────────────────────────────────────────────────────────
+
+    def toggle_language(self):
+        new_lang = "en" if get_language() == "ar" else "ar"
+        set_language(new_lang, self.db)
+        self.update_language_ui()
+
+    def update_language_ui(self):
+        app = QApplication.instance()
+        if app:
+            app.setLayoutDirection(get_layout_direction())
+        self.setLayoutDirection(get_layout_direction())
+        self.setStyleSheet(get_app_stylesheet(is_rtl()))
+
+        from build_info import APP_VERSION
+        self.setWindowTitle(tr("app_title", version=APP_VERSION))
+
+        cur_idx = self.stack.currentIndex()
+        if cur_idx == 0:
+            self.show_home()
+        elif cur_idx == 1:
+            if self.review_view.template:
+                self.show_review(self.review_view.template)
+            else:
+                self.show_home()
+        elif cur_idx == 2:
+            if self.entry_view.session and self.entry_view.template:
+                self.show_entry(self.entry_view.session, self.entry_view.template)
+            else:
+                self.show_home()
+        elif cur_idx == 3:
+            self.show_results()
+        elif cur_idx == 4:
+            self.show_templates()
+        elif cur_idx == 5:
+            self.show_statistics()
 
     # ─── التنقل بين الشاشات ───────────────────────────────────────────────────
 
     def show_home(self):
         self.home_view.refresh()
         self.stack.setCurrentIndex(0)
-        self.status_bar.showMessage("الصفحة الرئيسية")
+        self.status_bar.showMessage(tr("nav_home"))
 
     def show_review(self, template):
         self.review_view.load_template(template)
         self.stack.setCurrentIndex(1)
-        self.status_bar.showMessage("مراجعة الأسئلة")
+        self.status_bar.showMessage(tr("nav_review"))
 
     def show_entry(self, session, template):
         self.entry_view.load_session(session, template)
         self.stack.setCurrentIndex(2)
-        self.status_bar.showMessage("تفريغ البيانات")
+        self.status_bar.showMessage(tr("nav_entry"))
 
     def show_results(self):
         self.results_view.refresh()
         self.stack.setCurrentIndex(3)
-        self.status_bar.showMessage("النتائج")
+        self.status_bar.showMessage(tr("nav_results"))
 
     def show_templates(self):
         self.templates_view.refresh()
         self.stack.setCurrentIndex(4)
-        self.status_bar.showMessage("إدارة القوالب")
+        self.status_bar.showMessage(tr("nav_templates"))
 
     def show_statistics(self):
         self.statistics_view.refresh()
         self.stack.setCurrentIndex(5)
-        self.status_bar.showMessage("إحصائيات النظام")
+        self.status_bar.showMessage(tr("nav_stats"))
 
     # ─── حالة الحفظ ───────────────────────────────────────────────────────────
 
     def set_save_status(self, status: str):
         """status: 'saving' | 'saved' | 'error'"""
         messages = {
-            "saving": "⏳ جاري الحفظ...",
-            "saved":  "✅ تم الحفظ",
-            "error":  "❌ خطأ في الحفظ"
+            "saving": tr("saving"),
+            "saved":  tr("saved"),
+            "error":  tr("error_saving")
         }
         self.status_bar.showMessage(messages.get(status, status))
         if status in ("saved", "error"):
             self._save_status_timer.start(3000)
 
     def _clear_save_status(self):
-        self.status_bar.showMessage("جاهز")
+        self.status_bar.showMessage(tr("ready"))
 
     def closeEvent(self, event):
         self.db.close()

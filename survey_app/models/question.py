@@ -21,6 +21,7 @@ class Question:
     answers: List[str] = field(default_factory=list)
     likert_scale_id: int = 0  # 0 = لا ينتمي لمقياس
     branching_rules: dict = field(default_factory=dict)  # خريطة: {نص_الإجابة: كائن_السؤال_المستهدف}
+    section_header: str = ""  # عنوان الفاصل المقطعي إن وجد قبل هذا السؤال
 
     @property
     def is_general(self) -> bool:
@@ -39,11 +40,13 @@ class Question:
         return self.question_type == QuestionType.DEMOGRAPHIC_MULTIPLE
 
     def get_type_label(self) -> str:
+        from utils.translator import tr
         labels = {
-            QuestionType.GENERAL: "عام",
-            QuestionType.DEMOGRAPHIC_SINGLE: "ديموغرافي (إجابة واحدة)",
-            QuestionType.DEMOGRAPHIC_MULTIPLE: "ديموغرافي (إجابات متعددة)",
-            QuestionType.LIKERT: "ليكرت",
-            QuestionType.DEMOGRAPHIC_SINGLE_OTHER: "ديموغرافي (إجابة واحدة + أخرى)",
+            QuestionType.GENERAL: tr("qtype_general"),
+            QuestionType.DEMOGRAPHIC_SINGLE: tr("qtype_demographic_single"),
+            QuestionType.DEMOGRAPHIC_MULTIPLE: tr("qtype_demographic_multiple"),
+            QuestionType.LIKERT: tr("qtype_likert"),
+            QuestionType.DEMOGRAPHIC_SINGLE_OTHER: tr("qtype_demographic_single_other"),
         }
-        return labels.get(self.question_type, "غير معروف")
+        return labels.get(self.question_type, tr("qtype_unknown"))
+

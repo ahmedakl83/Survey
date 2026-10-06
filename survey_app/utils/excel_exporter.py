@@ -5,6 +5,7 @@ from openpyxl.utils import get_column_letter
 
 from models.template import Template
 from models.session import Session
+from utils.translator import tr, is_rtl
 
 
 def export_session_to_excel(session: Session, template: Template, output_path: str):
@@ -17,11 +18,11 @@ def export_session_to_excel(session: Session, template: Template, output_path: s
     
     # ─── الورقة الأولى: النتائج النصية ──────────────────────────────────────────
     ws_text = wb.active
-    ws_text.title = "النتائج النصية"
+    ws_text.title = tr("sheet_text_results")
     _format_sheet(ws_text, session, template, mode="text")
 
     # ─── الورقة الثانية: النتائج الرقمية ────────────────────────────────────────
-    ws_numeric = wb.create_sheet("النتائج الرقمية")
+    ws_numeric = wb.create_sheet(tr("sheet_numeric_results"))
     _format_sheet(ws_numeric, session, template, mode="numeric")
 
     wb.save(output_path)
@@ -29,21 +30,21 @@ def export_session_to_excel(session: Session, template: Template, output_path: s
 
 def _format_sheet(ws, session: Session, template: Template, mode: str):
     """تنسيق وتعبئة ورقة عمل محددة"""
-    ws.sheet_view.rightToLeft = True
+    ws.sheet_view.rightToLeft = is_rtl()
 
     # ألوان وأنماط
     header_fill = PatternFill("solid", fgColor="1F4E79")
     header_font = Font(bold=True, color="FFFFFF", size=11)
     alt_fill = PatternFill("solid", fgColor="D6E4F0")
     center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    right_align = Alignment(horizontal="right", vertical="center", wrap_text=True)
+    text_align = Alignment(horizontal="right" if is_rtl() else "left", vertical="center", wrap_text=True)
     thin_border = Border(
         left=Side(style="thin"), right=Side(style="thin"),
         top=Side(style="thin"), bottom=Side(style="thin")
     )
 
     # ─── رأس الجدول ───────────────────────────────────────────────────────────
-    ws.cell(row=1, column=1, value="رقم الاستمارة")
+    ws.cell(row=1, column=1, value=tr("col_form_number"))
     ws.cell(row=1, column=1).fill = header_fill
     ws.cell(row=1, column=1).font = header_font
     ws.cell(row=1, column=1).alignment = center_align
@@ -99,7 +100,7 @@ def _format_sheet(ws, session: Session, template: Template, mode: str):
                     display_value = ",".join(indices)
 
             cell = ws.cell(row=row_num, column=col_offset, value=display_value)
-            cell.alignment = right_align if isinstance(display_value, str) else center_align
+            cell.alignment = text_align if isinstance(display_value, str) else center_align
             cell.border = thin_border
             if use_alt:
                 cell.fill = alt_fill

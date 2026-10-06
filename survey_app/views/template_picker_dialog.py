@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from models.template import Template
+from utils.translator import tr, get_layout_direction
 
 
 class TemplatePickerDialog(QDialog):
@@ -17,9 +18,9 @@ class TemplatePickerDialog(QDialog):
 
     def __init__(self, templates: List[Template], parent=None):
         super().__init__(parent)
-        self.setWindowTitle("اختر القالب")
+        self.setWindowTitle(tr("template_picker_title"))
         self.setMinimumSize(480, 380)
-        self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.setLayoutDirection(get_layout_direction())
         self._templates = templates
         self._selected: Optional[Template] = None
         self._build_ui()
@@ -30,13 +31,11 @@ class TemplatePickerDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
 
         # ─── العنوان ──────────────────────────────────────────────────────────
-        title = QLabel("اختر القالب الذي يتوافق مع ملف الإجابات:")
+        title = QLabel(tr("template_picker_heading"))
         title.setStyleSheet("font-size: 14px; font-weight: bold; color: #1565C0;")
         layout.addWidget(title)
 
-        hint = QLabel(
-            "يجب أن تتطابق أسماء الأعمدة في ملف الإجابات مع أسماء الأسئلة في القالب."
-        )
+        hint = QLabel(tr("template_picker_hint"))
         hint.setStyleSheet("color: #546E7A; font-size: 12px;")
         hint.setWordWrap(True)
         layout.addWidget(hint)
@@ -51,10 +50,10 @@ class TemplatePickerDialog(QDialog):
         self.list_widget.itemDoubleClicked.connect(self._on_double_click)
 
         for t in self._templates:
+            q_count_str = tr("questions_num", count=t.question_count)
+            use_count_str = tr("used_num_times", count=t.use_count)
             item = QListWidgetItem(
-                f"{t.name}  —  {t.question_count} سؤال  |  "
-                f"استُخدم {t.use_count} مرة  |  "
-                f"{t.updated_at.strftime('%Y-%m-%d')}"
+                f"{t.name}  —  {q_count_str}  |  {use_count_str}  |  {t.updated_at.strftime('%Y-%m-%d')}"
             )
             item.setData(Qt.ItemDataRole.UserRole, t.id)
             self.list_widget.addItem(item)
@@ -69,8 +68,12 @@ class TemplatePickerDialog(QDialog):
             QDialogButtonBox.StandardButton.Ok |
             QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("اختيار")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("إلغاء")
+        ok_btn = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_btn:
+            ok_btn.setText(tr("btn_select"))
+        cancel_btn = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        if cancel_btn:
+            cancel_btn.setText(tr("cancel"))
         buttons.accepted.connect(self._on_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)

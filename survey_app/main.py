@@ -1,8 +1,11 @@
 import sys
+import os
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
+
 from views.main_window import MainWindow
 from database.db_manager import DatabaseManager
+from utils.translator import set_language, get_layout_direction, tr
 
 
 def main():
@@ -14,23 +17,25 @@ def main():
         except Exception:
             pass
 
+    # تهيئة قاعدة البيانات
+    db = DatabaseManager()
+    db.initialize()
+
+    # تحميل اللغة المحفوظة وضبط التوجيه المبدئي
+    saved_lang = db.get_setting("language", "ar")
+    set_language(saved_lang, db)
+
     app = QApplication(sys.argv)
-    app.setApplicationName("تفريغ الاستبيانات")
-    app.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+    app.setApplicationName(tr("app_name"))
+    app.setLayoutDirection(get_layout_direction())
 
     # تعيين الأيقونة للتطبيق بالكامل
-    from PyQt6.QtGui import QIcon
-    import os
     if getattr(sys, 'frozen', False):
         base_path = sys._MEIPASS
     else:
         base_path = os.path.dirname(os.path.abspath(__file__))
     icon_path = os.path.join(base_path, 'assets', 'icon.png')
     app.setWindowIcon(QIcon(icon_path))
-
-    # تهيئة قاعدة البيانات
-    db = DatabaseManager()
-    db.initialize()
 
     window = MainWindow(db)
     window.show()

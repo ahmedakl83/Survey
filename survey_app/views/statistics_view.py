@@ -3,9 +3,9 @@ from PyQt6.QtWidgets import (
     QScrollArea, QGridLayout, QPushButton
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QColor
 
 from database.db_manager import DatabaseManager
+from utils.translator import tr, is_rtl, get_layout_direction
 
 
 class StatisticsView(QWidget):
@@ -27,16 +27,16 @@ class StatisticsView(QWidget):
         h_layout = QHBoxLayout(header)
         h_layout.setContentsMargins(16, 0, 16, 0)
 
-        btn_back = QPushButton("→ رجوع")
-        btn_back.setStyleSheet(
+        self.btn_back = QPushButton(tr("back"))
+        self.btn_back.setStyleSheet(
             "background-color: transparent; color: white; border: none; font-size: 13px;"
         )
-        btn_back.clicked.connect(self.main_window.show_home)
-        h_layout.addWidget(btn_back)
+        self.btn_back.clicked.connect(self.main_window.show_home)
+        h_layout.addWidget(self.btn_back)
 
-        title = QLabel("إحصائيات النظام")
-        title.setStyleSheet("color: white; font-size: 17px; font-weight: bold;")
-        h_layout.addWidget(title)
+        self.title = QLabel(tr("stats_title"))
+        self.title.setStyleSheet("color: white; font-size: 17px; font-weight: bold;")
+        h_layout.addWidget(self.title)
         h_layout.addStretch()
 
         root.addWidget(header)
@@ -53,9 +53,11 @@ class StatisticsView(QWidget):
         self.layout.setContentsMargins(32, 24, 32, 24)
         self.layout.setSpacing(24)
 
-        # سيتم تعبئة البيانات في refresh()
-
     def refresh(self):
+        self.setLayoutDirection(get_layout_direction())
+        self.btn_back.setText(tr("back"))
+        self.title.setText(tr("stats_title"))
+
         # مسح المحتوى الحالي
         while self.layout.count():
             item = self.layout.takeAt(0)
@@ -68,17 +70,17 @@ class StatisticsView(QWidget):
         grid = QGridLayout()
         grid.setSpacing(16)
 
-        grid.addWidget(self._make_stat_card("إجمالي القوالب", str(stats["templates_count"]), "#1976D2"), 0, 0)
-        grid.addWidget(self._make_stat_card("إجمالي الجلسات", str(stats["sessions_count"]), "#388E3C"), 0, 1)
-        grid.addWidget(self._make_stat_card("الاستمارات المفرغة", str(stats["completed_forms"]), "#F57C00"), 1, 0)
+        grid.addWidget(self._make_stat_card(tr("stat_total_templates"), str(stats["templates_count"]), "#1976D2"), 0, 0)
+        grid.addWidget(self._make_stat_card(tr("stat_total_sessions"), str(stats["sessions_count"]), "#388E3C"), 0, 1)
+        grid.addWidget(self._make_stat_card(tr("stat_completed_forms"), str(stats["completed_forms"]), "#F57C00"), 1, 0)
         
-        avg_time_str = f"{stats['avg_form_time']} ثانية"
-        grid.addWidget(self._make_stat_card("متوسط وقت الاستمارة", avg_time_str, "#7B1FA2"), 1, 1)
+        avg_time_str = tr("seconds_unit", count=stats["avg_form_time"])
+        grid.addWidget(self._make_stat_card(tr("stat_avg_form_time"), avg_time_str, "#7B1FA2"), 1, 1)
 
         self.layout.addLayout(grid)
 
         # ─── القوالب الأكثر استخداماً ──────────────────────────────────────────
-        top_label = QLabel("القوالب الأكثر استخداماً")
+        top_label = QLabel(tr("top_used_templates"))
         top_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1565C0; margin-top: 12px;")
         self.layout.addWidget(top_label)
 
@@ -89,7 +91,7 @@ class StatisticsView(QWidget):
         top_layout.setSpacing(12)
 
         if not stats["top_templates"]:
-            top_layout.addWidget(QLabel("لا توجد بيانات متاحة بعد."))
+            top_layout.addWidget(QLabel(tr("no_data_yet")))
         else:
             for t in stats["top_templates"]:
                 row = QHBoxLayout()
@@ -97,7 +99,7 @@ class StatisticsView(QWidget):
                 name_lbl.setStyleSheet("font-weight: bold; border: none;")
                 row.addWidget(name_lbl)
                 row.addStretch()
-                count_lbl = QLabel(f"{t['count']} مرة")
+                count_lbl = QLabel(tr("times_unit", count=t["count"]))
                 count_lbl.setStyleSheet("color: #546E7A; border: none;")
                 row.addWidget(count_lbl)
                 
@@ -111,10 +113,12 @@ class StatisticsView(QWidget):
 
     def _make_stat_card(self, title, value, color) -> QFrame:
         card = QFrame()
+        accent_side = "border-right" if is_rtl() else "border-left"
+        other_sides = "border-left: 1px solid #CFD8DC;" if is_rtl() else "border-right: 1px solid #CFD8DC;"
         card.setStyleSheet(
             f"QFrame {{ background-color: white; border-radius: 12px; "
-            f"border-left: 5px solid {color}; border-top: 1px solid #CFD8DC; "
-            f"border-right: 1px solid #CFD8DC; border-bottom: 1px solid #CFD8DC; }}"
+            f"{accent_side}: 5px solid {color}; border-top: 1px solid #CFD8DC; "
+            f"{other_sides} border-bottom: 1px solid #CFD8DC; }}"
         )
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 20, 20, 20)

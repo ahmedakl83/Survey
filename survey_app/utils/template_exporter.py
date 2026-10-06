@@ -46,7 +46,8 @@ def export_template_to_json(template: Template, file_path: str):
             "question_type": int(q.question_type),
             "answers": q.answers,
             "likert_scale_index": scale_idx,
-            "branching": branching_data
+            "branching": branching_data,
+            "section_header": getattr(q, "section_header", "") or ""
         })
 
     data = {
@@ -90,7 +91,8 @@ def import_template_from_json(file_path: str) -> Template:
             column_index=q_data["column_index"],
             text=q_data["text"],
             question_type=QuestionType(q_data["question_type"]),
-            answers=q_data["answers"]
+            answers=q_data["answers"],
+            section_header=q_data.get("section_header", "") or ""
         )
         q._raw_branching = q_data.get("branching", {})
         

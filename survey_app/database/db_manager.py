@@ -52,7 +52,8 @@ class DatabaseManager:
                 question_type   INTEGER NOT NULL,
                 answers         TEXT NOT NULL DEFAULT '[]',  -- JSON array
                 likert_scale_id INTEGER DEFAULT 0,
-                branching       TEXT DEFAULT '{}'            -- JSON dictionary of {answer: target_column_index}
+                branching       TEXT DEFAULT '{}',           -- JSON dictionary of {answer: target_column_index}
+                section_header  TEXT DEFAULT ''              -- عنوان الفاصل المقطعي إن وجد
             );
 
             CREATE TABLE IF NOT EXISTS sessions (
@@ -77,6 +78,11 @@ class DatabaseManager:
                 duration_seconds INTEGER DEFAULT 0,
                 UNIQUE(session_id, form_index)
             );
+
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
         """)
         conn.commit()
 
@@ -86,6 +92,16 @@ class DatabaseManager:
         except sqlite3.OperationalError:
             try:
                 conn.execute("ALTER TABLE questions ADD COLUMN branching TEXT DEFAULT '{}'")
+                conn.commit()
+            except Exception:
+                pass
+
+        # ترقية تلقائية: إضافة عمود section_header إن لم يكن موجوداً لقواعد البيانات السابقة
+        try:
+            conn.execute("SELECT section_header FROM questions LIMIT 1")
+        except sqlite3.OperationalError:
+            try:
+                conn.execute("ALTER TABLE questions ADD COLUMN section_header TEXT DEFAULT ''")
                 conn.commit()
             except Exception:
                 pass
@@ -123,11 +139,12 @@ class DatabaseManager:
 
             conn.execute(
                 """INSERT INTO questions
-                   (template_id, column_index, text, question_type, answers, likert_scale_id, branching)
-                   VALUES (?,?,?,?,?,?,?)""",
+                   (template_id, column_index, text, question_type, answers, likert_scale_id, branching, section_header)
+                   VALUES (?,?,?,?,?,?,?,?)""",
                 (template_id, q.column_index, q.text, int(q.question_type),
                  json.dumps(q.answers, ensure_ascii=False), likert_id,
-                 json.dumps(branching_data, ensure_ascii=False))
+                 json.dumps(branching_data, ensure_ascii=False),
+                 getattr(q, 'section_header', '') or "")
             )
         conn.commit()
         return template_id
@@ -165,11 +182,12 @@ class DatabaseManager:
 
             conn.execute(
                 """INSERT INTO questions
-                   (template_id, column_index, text, question_type, answers, likert_scale_id, branching)
-                   VALUES (?,?,?,?,?,?,?)""",
+                   (template_id, column_index, text, question_type, answers, likert_scale_id, branching, section_header)
+                   VALUES (?,?,?,?,?,?,?,?)""",
                 (template.id, q.column_index, q.text, int(q.question_type),
                  json.dumps(q.answers, ensure_ascii=False), likert_id,
-                 json.dumps(branching_data, ensure_ascii=False))
+                 json.dumps(branching_data, ensure_ascii=False),
+                 getattr(q, 'section_header', '') or "")
             )
         conn.commit()
 
@@ -249,6 +267,10 @@ class DatabaseManager:
             if "branching" in row.keys():
                 branching_val = row["branching"] or "{}"
 
+            sec_header = ""
+            if "section_header" in row.keys():
+                sec_header = row["section_header"] or ""
+
             q = Question(
                 id=row["id"],
                 template_id=template_id,
@@ -256,7 +278,8 @@ class DatabaseManager:
                 text=row["text"],
                 question_type=QuestionType(row["question_type"]),
                 answers=json.loads(row["answers"]),
-                likert_scale_id=row["likert_scale_id"] or 0
+                likert_scale_id=row["likert_scale_id"] or 0,
+                section_header=sec_header
             )
             q._raw_branching = json.loads(branching_val) if branching_val else {}
             questions.append(q)
@@ -465,6 +488,23 @@ class DatabaseManager:
             shutil.copy2(source_path, str(self.db_path))
         except Exception as e:
             raise RuntimeError(f"فشل استعادة البيانات: {e}")
+
+    # ─── Settings ─────────────────────────────────────────────────────────────
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        conn = self._get_conn()
+        row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+        if row:
+            return row["value"]
+        return default
+
+    def set_setting(self, key: str, value: str):
+        conn = self._get_conn()
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, value)
+        )
+        conn.commit()
 
     def close(self):
         if self._conn:

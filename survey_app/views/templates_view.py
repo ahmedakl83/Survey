@@ -4,11 +4,11 @@ from PyQt6.QtWidgets import (
     QMessageBox, QAbstractItemView, QFileDialog, QInputDialog
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
 
 from database.db_manager import DatabaseManager
 from utils.excel_importer import import_responses_from_excel, ImportError
 from models.session import Session
+from utils.translator import tr, get_layout_direction, get_text_alignment
 
 
 class TemplatesView(QWidget):
@@ -30,16 +30,16 @@ class TemplatesView(QWidget):
         h_layout = QHBoxLayout(header)
         h_layout.setContentsMargins(16, 0, 16, 0)
 
-        btn_back = QPushButton("→ رجوع")
-        btn_back.setStyleSheet(
+        self.btn_back = QPushButton(tr("back"))
+        self.btn_back.setStyleSheet(
             "background-color: transparent; color: white; border: none; font-size: 13px;"
         )
-        btn_back.clicked.connect(self.main_window.show_home)
-        h_layout.addWidget(btn_back)
+        self.btn_back.clicked.connect(self.main_window.show_home)
+        h_layout.addWidget(self.btn_back)
 
-        title = QLabel("إدارة القوالب")
-        title.setStyleSheet("color: white; font-size: 17px; font-weight: bold;")
-        h_layout.addWidget(title)
+        self.title_lbl = QLabel(tr("templates_title"))
+        self.title_lbl.setStyleSheet("color: white; font-size: 17px; font-weight: bold;")
+        h_layout.addWidget(self.title_lbl)
         h_layout.addStretch()
 
         root.addWidget(header)
@@ -52,10 +52,7 @@ class TemplatesView(QWidget):
 
         self.table = QTableWidget()
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels([
-            "اسم القالب", "عدد الأسئلة", "مرات الاستخدام",
-            "تاريخ الإنشاء", "الإجراءات"
-        ])
+        self._update_header_labels()
         self.table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.Stretch
         )
@@ -78,23 +75,40 @@ class TemplatesView(QWidget):
 
         # صف أزرار التحكم بالقوالب
         btn_row = QHBoxLayout()
-        btn_import_template = QPushButton("📥 استيراد قالب من ملف (.json)")
-        btn_import_template.setObjectName("btn_secondary")
-        btn_import_template.clicked.connect(self._import_template_from_file)
-        btn_row.addWidget(btn_import_template)
+        self.btn_import_template = QPushButton(tr("btn_import_template_json"))
+        self.btn_import_template.setObjectName("btn_secondary")
+        self.btn_import_template.clicked.connect(self._import_template_from_file)
+        btn_row.addWidget(self.btn_import_template)
         btn_row.addStretch()
         content_layout.addLayout(btn_row)
 
         root.addWidget(content)
 
+    def _update_header_labels(self):
+        self.table.setHorizontalHeaderLabels([
+            tr("th_template_name"),
+            tr("questions_count"),
+            tr("usage_count"),
+            tr("created_date"),
+            tr("actions")
+        ])
+
     def refresh(self):
+        self.setLayoutDirection(get_layout_direction())
+        self.btn_back.setText(tr("back"))
+        self.title_lbl.setText(tr("templates_title"))
+        self.btn_import_template.setText(tr("btn_import_template_json"))
+        self._update_header_labels()
+
         self.table.setRowCount(0)
         templates = self.db.load_all_templates()
 
         for i, t in enumerate(templates):
             self.table.insertRow(i)
 
-            self.table.setItem(i, 0, QTableWidgetItem(t.name))
+            name_item = QTableWidgetItem(t.name)
+            name_item.setTextAlignment(get_text_alignment() | Qt.AlignmentFlag.AlignVCenter)
+            self.table.setItem(i, 0, name_item)
 
             q_item = QTableWidgetItem(str(t.question_count))
             q_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -114,23 +128,23 @@ class TemplatesView(QWidget):
             actions_layout.setContentsMargins(6, 4, 6, 4)
             actions_layout.setSpacing(6)
 
-            btn_use = QPushButton("استخدام")
+            btn_use = QPushButton(tr("use"))
             btn_use.setFixedWidth(82)
             btn_use.clicked.connect(
                 lambda _, tid=t.id: self._use_template(tid)
             )
             actions_layout.addWidget(btn_use)
 
-            btn_import = QPushButton("📥 استيراد إجابات")
+            btn_import = QPushButton(tr("btn_numeric_answers"))
             btn_import.setObjectName("btn_secondary")
             btn_import.setFixedWidth(130)
-            btn_import.setToolTip("استورد ملف Excel يحتوي على أرقام الإجابات وطبّق عليه هذا القالب")
+            btn_import.setToolTip(tr("tooltip_import_responses_template"))
             btn_import.clicked.connect(
                 lambda _, tid=t.id: self._import_responses(tid)
             )
             actions_layout.addWidget(btn_import)
 
-            btn_edit = QPushButton("تعديل")
+            btn_edit = QPushButton(tr("edit"))
             btn_edit.setObjectName("btn_secondary")
             btn_edit.setFixedWidth(70)
             btn_edit.clicked.connect(
@@ -138,7 +152,7 @@ class TemplatesView(QWidget):
             )
             actions_layout.addWidget(btn_edit)
 
-            btn_export = QPushButton("📤 تصدير")
+            btn_export = QPushButton(tr("export"))
             btn_export.setObjectName("btn_secondary")
             btn_export.setFixedWidth(70)
             btn_export.clicked.connect(
@@ -146,7 +160,7 @@ class TemplatesView(QWidget):
             )
             actions_layout.addWidget(btn_export)
 
-            btn_delete = QPushButton("حذف")
+            btn_delete = QPushButton(tr("delete"))
             btn_delete.setObjectName("btn_danger")
             btn_delete.setFixedWidth(60)
             btn_delete.clicked.connect(
@@ -172,15 +186,15 @@ class TemplatesView(QWidget):
         """استيراد ملف إجابات رقمية وتطبيق القالب المحدد عليه"""
         template = self.db.load_template(template_id)
         if not template:
-            QMessageBox.warning(self, "خطأ", "لم يتم العثور على القالب.")
+            QMessageBox.warning(self, tr("error"), tr("template_not_found"))
             return
 
         # اختيار الملف
         path, _ = QFileDialog.getOpenFileName(
             self,
-            f"اختر ملف الإجابات الرقمية — {template.name}",
+            tr("choose_responses_file_title", template_name=template.name),
             "",
-            "ملفات Excel (*.xlsx *.xls)"
+            tr("excel_files_filter")
         )
         if not path:
             return
@@ -188,18 +202,17 @@ class TemplatesView(QWidget):
         try:
             forms, warnings = import_responses_from_excel(path, template)
         except ImportError as e:
-            QMessageBox.critical(self, "خطأ في الاستيراد", str(e))
+            QMessageBox.critical(self, tr("import_error"), str(e))
             return
 
         if warnings:
-            msg = (
-                f"تم قراءة الملف مع {len(warnings)} تحذير:\n\n"
-                + "\n".join(f"• {w}" for w in warnings[:10])
-                + (f"\n... و{len(warnings) - 10} تحذير آخر" if len(warnings) > 10 else "")
-                + "\n\nهل تريد المتابعة؟"
+            msg = tr(
+                "import_responses_warning_msg",
+                count=len(warnings),
+                warnings="\n".join(f"• {w}" for w in warnings[:10])
             )
             reply = QMessageBox.warning(
-                self, "تحذيرات الاستيراد", msg,
+                self, tr("import_warnings_title"), msg,
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             if reply != QMessageBox.StandardButton.Yes:
@@ -207,11 +220,9 @@ class TemplatesView(QWidget):
 
         # اسم الجلسة
         name, ok = QInputDialog.getText(
-            self, "اسم الجلسة",
-            f"القالب: {template.name}\n"
-            f"عدد الاستمارات المستوردة: {len(forms)}\n\n"
-            f"أدخل اسماً لهذه الجلسة:",
-            text=f"جلسة {template.name}"
+            self, tr("session_name_title"),
+            tr("session_name_prompt", template=template.name, count=len(forms)),
+            text=tr("default_session_name", template=template.name)
         )
         if not ok or not name.strip():
             return
@@ -230,10 +241,8 @@ class TemplatesView(QWidget):
         self.db.increment_template_use(template.id)
 
         QMessageBox.information(
-            self, "تم الاستيراد بنجاح",
-            f"✅ تم استيراد {len(forms)} استمارة بنجاح\n"
-            f"القالب: {template.name}\n\n"
-            f"يمكنك الآن عرض النتائج أو تصديرها."
+            self, tr("import_success_title"),
+            tr("import_responses_success_msg", count=len(forms), template=template.name)
         )
         self.main_window.show_results()
 
@@ -243,18 +252,18 @@ class TemplatesView(QWidget):
 
         if linked_sessions:
             names = "\n".join(f"  • {s.name}" for s in linked_sessions[:5])
-            extra = f"\n  ... و{len(linked_sessions) - 5} جلسة أخرى" if len(linked_sessions) > 5 else ""
-            msg = (
-                f"هذا القالب مرتبط بـ {len(linked_sessions)} جلسة تفريغ:\n"
-                f"{names}{extra}\n\n"
-                "حذف القالب سيؤدي إلى حذف هذه الجلسات وجميع بياناتها نهائياً.\n"
-                "هل تريد المتابعة؟"
+            extra = f"\n  ... +{len(linked_sessions) - 5}" if len(linked_sessions) > 5 else ""
+            msg = tr(
+                "delete_template_linked_msg",
+                count=len(linked_sessions),
+                names=names,
+                extra=extra
             )
         else:
-            msg = "هل تريد حذف هذا القالب وجميع أسئلته؟\nلا يمكن التراجع عن هذا الإجراء."
+            msg = tr("delete_template_msg")
 
         reply = QMessageBox.question(
-            self, "تأكيد الحذف", msg,
+            self, tr("confirm_delete"), msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -264,18 +273,18 @@ class TemplatesView(QWidget):
             self.db.delete_template(template_id)
             self.refresh()
         except Exception as e:
-            QMessageBox.critical(self, "خطأ في الحذف", str(e))
+            QMessageBox.critical(self, tr("delete_error_title"), str(e))
 
     def _export_template(self, template_id: int):
         template = self.db.load_template(template_id)
         if not template:
-            QMessageBox.warning(self, "خطأ", "لم يتم العثور على القالب.")
+            QMessageBox.warning(self, tr("error"), tr("template_not_found"))
             return
 
         path, _ = QFileDialog.getSaveFileName(
-            self, "تصدير القالب",
+            self, tr("export_template_title"),
             f"{template.name}.json",
-            "ملفات القوالب (*.json)"
+            tr("json_files_filter")
         )
         if not path:
             return
@@ -284,16 +293,16 @@ class TemplatesView(QWidget):
             from utils.template_exporter import export_template_to_json
             export_template_to_json(template, path)
             QMessageBox.information(
-                self, "تم التصدير بنجاح",
-                f"✅ تم تصدير القالب بنجاح إلى:\n{path}"
+                self, tr("success"),
+                tr("export_template_success", path=path)
             )
         except Exception as e:
-            QMessageBox.critical(self, "خطأ في التصدير", str(e))
+            QMessageBox.critical(self, tr("export_error_title"), str(e))
 
     def _import_template_from_file(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "استيراد قالب", "",
-            "ملفات القوالب (*.json)"
+            self, tr("import_template_title"), "",
+            tr("json_files_filter")
         )
         if not path:
             return
@@ -302,13 +311,12 @@ class TemplatesView(QWidget):
             from utils.template_exporter import import_template_from_json
             template = import_template_from_json(path)
         except Exception as e:
-            QMessageBox.critical(self, "خطأ في الاستيراد", f"تعذر قراءة ملف القالب:\n{str(e)}")
+            QMessageBox.critical(self, tr("import_error"), tr("import_template_error", error=str(e)))
             return
 
-        # طلب اسم القالب الجديد (أو المحافظة على الاسم الأصلي)
         name, ok = QInputDialog.getText(
-            self, "اسم القالب المستورد",
-            "تأكيد أو تعديل اسم القالب:",
+            self, tr("imported_template_name_title"),
+            tr("imported_template_name_prompt"),
             text=template.name
         )
         if not ok or not name.strip():
@@ -316,12 +324,11 @@ class TemplatesView(QWidget):
         template.name = name.strip()
 
         try:
-            # حفظ القالب
             self.db.save_template(template)
             self.refresh()
             QMessageBox.information(
-                self, "تم الاستيراد بنجاح",
-                f"✅ تم استيراد قالب '{template.name}' بنجاح وحفظه في قاعدة البيانات."
+                self, tr("success"),
+                tr("imported_template_success", name=template.name)
             )
         except Exception as e:
-            QMessageBox.critical(self, "خطأ في الحفظ", f"فشل حفظ القالب المستورد:\n{str(e)}")
+            QMessageBox.critical(self, tr("error"), tr("imported_template_save_failed", error=str(e)))

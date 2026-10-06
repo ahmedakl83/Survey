@@ -1,14 +1,15 @@
+from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFileDialog, QInputDialog, QMessageBox, QFrame, QScrollArea,
     QGridLayout, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt
 
 from database.db_manager import DatabaseManager
 from utils.excel_importer import import_template_from_excel, import_responses_from_excel, ImportError
 from models.session import Session
+from utils.translator import tr, get_layout_direction, is_rtl
 
 
 class HomeView(QWidget):
@@ -31,38 +32,49 @@ class HomeView(QWidget):
         h_layout.setContentsMargins(24, 0, 24, 0)
 
         from build_info import APP_VERSION
-        title = QLabel(f"تفريغ الاستبيانات - الإصدار {APP_VERSION}")
-        title.setStyleSheet("color: white; font-size: 22px; font-weight: bold;")
-        h_layout.addWidget(title)
+        self.title_lbl = QLabel(tr("app_title", version=APP_VERSION))
+        self.title_lbl.setStyleSheet("color: white; font-size: 22px; font-weight: bold;")
+        h_layout.addWidget(self.title_lbl)
         h_layout.addStretch()
 
-        btn_templates = QPushButton("إدارة القوالب")
-        btn_templates.setObjectName("btn_secondary")
-        btn_templates.setStyleSheet(
+        # زر تبديل اللغة
+        self.btn_lang = QPushButton(tr("language_toggle"))
+        self.btn_lang.setObjectName("btn_secondary")
+        self.btn_lang.setStyleSheet(
+            "background-color: #FFC107; color: #1a1a2e; "
+            "border: none; border-radius: 6px; "
+            "padding: 6px 16px; font-weight: bold; margin-left: 4px; margin-right: 4px;"
+        )
+        self.btn_lang.clicked.connect(self.main_window.toggle_language)
+        h_layout.addWidget(self.btn_lang)
+
+        self.btn_templates = QPushButton(tr("nav_templates"))
+        self.btn_templates.setObjectName("btn_secondary")
+        self.btn_templates.setStyleSheet(
             "background-color: rgba(255,255,255,0.15); color: white; "
             "border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; "
             "padding: 6px 16px; font-weight: bold;"
         )
-        btn_templates.clicked.connect(self.main_window.show_templates)
-        h_layout.addWidget(btn_templates)
+        self.btn_templates.clicked.connect(self.main_window.show_templates)
+        h_layout.addWidget(self.btn_templates)
 
-        btn_results = QPushButton("النتائج المحفوظة")
-        btn_results.setStyleSheet(
+        self.btn_results = QPushButton(tr("nav_results"))
+        self.btn_results.setStyleSheet(
             "background-color: rgba(255,255,255,0.15); color: white; "
             "border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; "
-            "padding: 6px 16px; font-weight: bold; margin-right: 8px;"
+            "padding: 6px 16px; font-weight: bold; margin-right: 4px; margin-left: 4px;"
         )
-        btn_results.clicked.connect(self.main_window.show_results)
-        h_layout.addWidget(btn_results)
+        self.btn_results.clicked.connect(self.main_window.show_results)
+        h_layout.addWidget(self.btn_results)
  
-        btn_stats = QPushButton("الإحصائيات")
-        btn_stats.setStyleSheet(
+        self.btn_stats = QPushButton(tr("nav_stats"))
+        self.btn_stats.setStyleSheet(
             "background-color: rgba(255,255,255,0.15); color: white; "
             "border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; "
-            "padding: 6px 16px; font-weight: bold; margin-right: 8px;"
+            "padding: 6px 16px; font-weight: bold; margin-right: 4px; margin-left: 4px;"
         )
-        btn_stats.clicked.connect(self.main_window.show_statistics)
-        h_layout.addWidget(btn_stats)
+        self.btn_stats.clicked.connect(self.main_window.show_statistics)
+        h_layout.addWidget(self.btn_stats)
 
         root.addWidget(header)
 
@@ -74,69 +86,24 @@ class HomeView(QWidget):
         scroll.setWidget(content)
         root.addWidget(scroll)
 
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(32, 32, 32, 32)
-        content_layout.setSpacing(24)
+        self.content_layout = QVBoxLayout(content)
+        self.content_layout.setContentsMargins(32, 32, 32, 32)
+        self.content_layout.setSpacing(24)
 
         # ─── بطاقات الإجراءات الرئيسية ────────────────────────────────────────
-        actions_label = QLabel("ابدأ جلسة تفريغ جديدة")
-        actions_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1565C0;")
-        content_layout.addWidget(actions_label)
+        self.actions_label = QLabel(tr("start_new_session"))
+        self.actions_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1565C0;")
+        self.content_layout.addWidget(self.actions_label)
 
-        cards_layout = QGridLayout()
-        cards_layout.setSpacing(16)
-
-        # بطاقة: استيراد ملف Excel
-        import_card = self._make_action_card(
-            "📂  استيراد ملف Excel",
-            "استورد ملف Excel يحتوي على الأسئلة\nوإجاباتها وابدأ جلسة تفريغ جديدة",
-            "استيراد",
-            self._on_import_excel
-        )
-        cards_layout.addWidget(import_card, 0, 0)
-
-        # بطاقة: إنشاء من الصفر
-        create_card = self._make_action_card(
-            "✨  إنشاء قالب من الصفر",
-            "أنشئ قالباً جديداً يدوياً وقم بإضافة\nالأسئلة والخيارات بنفسك",
-            "إنشاء جديد",
-            self._on_create_template
-        )
-        cards_layout.addWidget(create_card, 0, 1)
-
-        # بطاقة: فتح قالب محفوظ
-        template_card = self._make_action_card(
-            "📋  فتح قالب محفوظ",
-            "اختر قالباً محفوظاً مسبقاً\nوابدأ جلسة تفريغ جديدة",
-            "فتح قالب",
-            self._on_open_template
-        )
-        cards_layout.addWidget(template_card, 0, 2)
-
-        # بطاقة: استئناف جلسة
-        resume_card = self._make_action_card(
-            "▶️  استئناف جلسة",
-            "استأنف جلسة تفريغ سابقة\nمن النقطة التي توقفت عندها",
-            "استئناف",
-            self._on_resume_session
-        )
-        cards_layout.addWidget(resume_card, 1, 0)
-
-        # بطاقة: استيراد إجابات رقمية
-        import_responses_card = self._make_action_card(
-            "🔢  استيراد إجابات رقمية",
-            "لديك ملف Excel جاهز بأرقام الإجابات؟\nاختر قالباً وسيتم تحويل الأرقام\nإلى نصوص الإجابات تلقائياً",
-            "استيراد إجابات",
-            self._on_import_responses
-        )
-        cards_layout.addWidget(import_responses_card, 1, 1)
-
-        content_layout.addLayout(cards_layout)
+        self.cards_layout = QGridLayout()
+        self.cards_layout.setSpacing(16)
+        self._build_action_cards()
+        self.content_layout.addLayout(self.cards_layout)
 
         # ─── القوالب الأخيرة ──────────────────────────────────────────────────
-        recent_label = QLabel("القوالب الأخيرة")
-        recent_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1565C0;")
-        content_layout.addWidget(recent_label)
+        self.recent_label = QLabel(tr("recent_templates"))
+        self.recent_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1565C0;")
+        self.content_layout.addWidget(self.recent_label)
 
         self.recent_frame = QFrame()
         self.recent_frame.setObjectName("recent_frame")
@@ -147,37 +114,88 @@ class HomeView(QWidget):
         self.recent_layout = QVBoxLayout(self.recent_frame)
         self.recent_layout.setContentsMargins(16, 16, 16, 16)
         self.recent_layout.setSpacing(8)
-        content_layout.addWidget(self.recent_frame)
+        self.content_layout.addWidget(self.recent_frame)
  
         # ─── صيانة البيانات ───────────────────────────────────────────────────
-        maint_label = QLabel("صيانة البيانات")
-        maint_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1565C0; margin-top: 12px;")
-        content_layout.addWidget(maint_label)
+        self.maint_label = QLabel(tr("data_maintenance"))
+        self.maint_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1565C0; margin-top: 12px;")
+        self.content_layout.addWidget(self.maint_label)
  
-        maint_frame = QFrame()
-        maint_frame.setObjectName("maint_frame")
-        maint_frame.setStyleSheet("QFrame#maint_frame { background-color: #F5F5F5; border-radius: 8px; border: 1px dashed #BDBDBD; }")
-        maint_layout = QHBoxLayout(maint_frame)
-        maint_layout.setContentsMargins(16, 12, 16, 12)
+        self.maint_frame = QFrame()
+        self.maint_frame.setObjectName("maint_frame")
+        self.maint_frame.setStyleSheet("QFrame#maint_frame { background-color: #F5F5F5; border-radius: 8px; border: 1px dashed #BDBDBD; }")
+        self.maint_layout = QHBoxLayout(self.maint_frame)
+        self.maint_layout.setContentsMargins(16, 12, 16, 12)
  
-        maint_desc = QLabel("قم بحماية بياناتك عن طريق أخذ نسخة احتياطية دورية أو استعادتها.")
-        maint_desc.setStyleSheet("color: #616161; font-size: 12px; border: none;")
-        maint_layout.addWidget(maint_desc)
-        maint_layout.addStretch()
+        self.maint_desc = QLabel(tr("maintenance_desc"))
+        self.maint_desc.setStyleSheet("color: #616161; font-size: 12px; border: none;")
+        self.maint_layout.addWidget(self.maint_desc)
+        self.maint_layout.addStretch()
  
-        btn_backup = QPushButton("📦 نسخة احتياطية")
-        btn_backup.setObjectName("btn_secondary")
-        btn_backup.clicked.connect(self._on_backup)
-        maint_layout.addWidget(btn_backup)
+        self.btn_backup = QPushButton(tr("btn_backup"))
+        self.btn_backup.setObjectName("btn_secondary")
+        self.btn_backup.clicked.connect(self._on_backup)
+        self.maint_layout.addWidget(self.btn_backup)
  
-        btn_restore = QPushButton("🔄 استعادة البيانات")
-        btn_restore.setObjectName("btn_danger")
-        btn_restore.clicked.connect(self._on_restore)
-        maint_layout.addWidget(btn_restore)
+        self.btn_restore = QPushButton(tr("btn_restore"))
+        self.btn_restore.setObjectName("btn_danger")
+        self.btn_restore.clicked.connect(self._on_restore)
+        self.maint_layout.addWidget(self.btn_restore)
  
-        content_layout.addWidget(maint_frame)
+        self.content_layout.addWidget(self.maint_frame)
+        self.content_layout.addStretch()
 
-        content_layout.addStretch()
+    def _build_action_cards(self):
+        # تنظيف البطاقات السابقة
+        while self.cards_layout.count():
+            item = self.cards_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # بطاقة: استيراد ملف Excel
+        import_card = self._make_action_card(
+            tr("card_import_excel_title"),
+            tr("card_import_excel_desc"),
+            tr("card_import_excel_btn"),
+            self._on_import_excel
+        )
+        self.cards_layout.addWidget(import_card, 0, 0)
+
+        # بطاقة: إنشاء من الصفر
+        create_card = self._make_action_card(
+            tr("card_create_template_title"),
+            tr("card_create_template_desc"),
+            tr("card_create_template_btn"),
+            self._on_create_template
+        )
+        self.cards_layout.addWidget(create_card, 0, 1)
+
+        # بطاقة: فتح قالب محفوظ
+        template_card = self._make_action_card(
+            tr("card_open_template_title"),
+            tr("card_open_template_desc"),
+            tr("card_open_template_btn"),
+            self._on_open_template
+        )
+        self.cards_layout.addWidget(template_card, 0, 2)
+
+        # بطاقة: استئناف جلسة
+        resume_card = self._make_action_card(
+            tr("card_resume_session_title"),
+            tr("card_resume_session_desc"),
+            tr("card_resume_session_btn"),
+            self._on_resume_session
+        )
+        self.cards_layout.addWidget(resume_card, 1, 0)
+
+        # بطاقة: استيراد إجابات رقمية
+        import_responses_card = self._make_action_card(
+            tr("card_import_responses_title"),
+            tr("card_import_responses_desc"),
+            tr("card_import_responses_btn"),
+            self._on_import_responses
+        )
+        self.cards_layout.addWidget(import_responses_card, 1, 1)
 
     def _make_action_card(self, title, description, btn_text, callback) -> QFrame:
         card = QFrame()
@@ -212,6 +230,22 @@ class HomeView(QWidget):
         return card
 
     def refresh(self):
+        self.setLayoutDirection(get_layout_direction())
+        from build_info import APP_VERSION
+        self.title_lbl.setText(tr("app_title", version=APP_VERSION))
+        self.btn_lang.setText(tr("language_toggle"))
+        self.btn_templates.setText(tr("nav_templates"))
+        self.btn_results.setText(tr("nav_results"))
+        self.btn_stats.setText(tr("nav_stats"))
+        self.actions_label.setText(tr("start_new_session"))
+        self.recent_label.setText(tr("recent_templates"))
+        self.maint_label.setText(tr("data_maintenance"))
+        self.maint_desc.setText(tr("maintenance_desc"))
+        self.btn_backup.setText(tr("btn_backup"))
+        self.btn_restore.setText(tr("btn_restore"))
+
+        self._build_action_cards()
+
         # تحديث القوالب الأخيرة
         while self.recent_layout.count():
             item = self.recent_layout.takeAt(0)
@@ -220,7 +254,7 @@ class HomeView(QWidget):
 
         templates = self.db.load_all_templates()
         if not templates:
-            lbl = QLabel("لا توجد قوالب محفوظة بعد.")
+            lbl = QLabel(tr("no_templates_yet"))
             lbl.setStyleSheet("color: #90A4AE; padding: 8px;")
             self.recent_layout.addWidget(lbl)
             return
@@ -234,27 +268,27 @@ class HomeView(QWidget):
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(4, 6, 4, 6)
 
+            q_count_str = tr("questions_num", count=t.question_count)
+            use_count_str = tr("used_num_times", count=t.use_count)
             info = QLabel(
                 f"<b>{t.name}</b>  "
                 f"<span style='color:#90A4AE; font-size:11px;'>"
-                f"{t.question_count} سؤال · "
-                f"استُخدم {t.use_count} مرة · "
-                f"{t.updated_at.strftime('%Y-%m-%d')}"
+                f"{q_count_str} · {use_count_str} · {t.updated_at.strftime('%Y-%m-%d')}"
                 f"</span>"
             )
             info.setStyleSheet("border: none;")
             row_layout.addWidget(info)
             row_layout.addStretch()
 
-            btn_use = QPushButton("استخدام")
+            btn_use = QPushButton(tr("use"))
             btn_use.setFixedWidth(90)
             btn_use.clicked.connect(lambda _, tid=t.id: self._start_from_template(tid))
             row_layout.addWidget(btn_use)
 
-            btn_import = QPushButton("📥 إجابات رقمية")
-            btn_import.setFixedWidth(120)
+            btn_import = QPushButton(tr("btn_numeric_answers"))
+            btn_import.setFixedWidth(130)
             btn_import.setObjectName("btn_secondary")
-            btn_import.setToolTip("استورد ملف Excel بأرقام الإجابات وطبّق هذا القالب عليه")
+            btn_import.setToolTip(tr("tooltip_numeric_answers"))
             btn_import.clicked.connect(lambda _, tid=t.id: self._import_responses_for_template(tid))
             row_layout.addWidget(btn_import)
 
@@ -262,9 +296,9 @@ class HomeView(QWidget):
 
     def _on_create_template(self):
         name, ok = QInputDialog.getText(
-            self, "إنشاء قالب جديد",
-            "أدخل اسماً للقالب الجديد:",
-            text="قالب جديد"
+            self, tr("create_new_template_title"),
+            tr("create_new_template_prompt"),
+            text=tr("default_template_name")
         )
         if not ok or not name.strip():
             return
@@ -272,18 +306,15 @@ class HomeView(QWidget):
         from models.template import Template
         template = Template(name=name.strip())
         
-        # حفظ القالب للحصول على ID
         template_id = self.db.save_template(template)
         template.id = template_id
         
         self.main_window.show_review(template)
 
-    # ─── معالجات الأحداث ──────────────────────────────────────────────────────
-
     def _on_import_excel(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "اختر ملف Excel", "",
-            "ملفات Excel (*.xlsx *.xls)"
+            self, tr("choose_excel_file"), "",
+            tr("excel_files_filter")
         )
         if not path:
             return
@@ -291,18 +322,18 @@ class HomeView(QWidget):
         try:
             template, warnings = import_template_from_excel(path)
         except ImportError as e:
-            QMessageBox.critical(self, "خطأ في الاستيراد", str(e))
+            QMessageBox.critical(self, tr("import_error"), str(e))
             return
 
         if warnings:
-            msg = "تم الاستيراد مع التحذيرات التالية:\n\n" + "\n".join(f"• {w}" for w in warnings)
-            QMessageBox.warning(self, "تحذيرات", msg)
+            msg = tr("import_warnings_msg", warnings="\n".join(f"• {w}" for w in warnings))
+            QMessageBox.warning(self, tr("import_warnings_title"), msg)
 
         # طلب اسم القالب
         name, ok = QInputDialog.getText(
-            self, "اسم القالب",
-            "أدخل اسماً للقالب:",
-            text="قالب جديد"
+            self, tr("template_name_prompt_title"),
+            tr("template_name_prompt_msg"),
+            text=template.name or tr("default_template_name")
         )
         if not ok or not name.strip():
             return
@@ -319,7 +350,7 @@ class HomeView(QWidget):
     def _on_open_template(self):
         templates = self.db.load_all_templates()
         if not templates:
-            QMessageBox.information(self, "لا توجد قوالب", "لا توجد قوالب محفوظة بعد.")
+            QMessageBox.information(self, tr("no_templates_title"), tr("no_templates_yet"))
             return
         self.main_window.show_templates()
 
@@ -327,14 +358,14 @@ class HomeView(QWidget):
         sessions = self.db.load_all_sessions()
         incomplete = [s for s in sessions if s.completed_forms < s.total_forms]
         if not incomplete:
-            QMessageBox.information(self, "لا توجد جلسات", "لا توجد جلسات غير مكتملة.")
+            QMessageBox.information(self, tr("no_sessions_title"), tr("no_sessions_msg"))
             return
         self.main_window.show_results()
 
     def _start_from_template(self, template_id: int):
         template = self.db.load_template(template_id)
         if not template:
-            QMessageBox.warning(self, "خطأ", "لم يتم العثور على القالب.")
+            QMessageBox.warning(self, tr("error"), tr("template_not_found"))
             return
         self.main_window.show_review(template)
 
@@ -342,14 +373,14 @@ class HomeView(QWidget):
         """استيراد إجابات رقمية مباشرة من قائمة القوالب الأخيرة"""
         template = self.db.load_template(template_id)
         if not template:
-            QMessageBox.warning(self, "خطأ", "لم يتم العثور على القالب.")
+            QMessageBox.warning(self, tr("error"), tr("template_not_found"))
             return
 
         path, _ = QFileDialog.getOpenFileName(
             self,
-            f"اختر ملف الإجابات الرقمية — {template.name}",
+            tr("choose_responses_file_title", template_name=template.name),
             "",
-            "ملفات Excel (*.xlsx *.xls)"
+            tr("excel_files_filter")
         )
         if not path:
             return
@@ -357,29 +388,26 @@ class HomeView(QWidget):
         try:
             forms, warnings = import_responses_from_excel(path, template)
         except ImportError as e:
-            QMessageBox.critical(self, "خطأ في الاستيراد", str(e))
+            QMessageBox.critical(self, tr("import_error"), str(e))
             return
 
         if warnings:
-            msg = (
-                f"تم قراءة الملف مع {len(warnings)} تحذير:\n\n"
-                + "\n".join(f"• {w}" for w in warnings[:10])
-                + (f"\n... و{len(warnings) - 10} تحذير آخر" if len(warnings) > 10 else "")
-                + "\n\nهل تريد المتابعة؟"
+            msg = tr(
+                "import_responses_warning_msg",
+                count=len(warnings),
+                warnings="\n".join(f"• {w}" for w in warnings[:10])
             )
             reply = QMessageBox.warning(
-                self, "تحذيرات الاستيراد", msg,
+                self, tr("import_warnings_title"), msg,
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             if reply != QMessageBox.StandardButton.Yes:
                 return
 
         name, ok = QInputDialog.getText(
-            self, "اسم الجلسة",
-            f"القالب: {template.name}\n"
-            f"عدد الاستمارات المستوردة: {len(forms)}\n\n"
-            f"أدخل اسماً لهذه الجلسة:",
-            text=f"جلسة {template.name}"
+            self, tr("session_name_title"),
+            tr("session_name_prompt", template=template.name, count=len(forms)),
+            text=tr("default_session_name", template=template.name)
         )
         if not ok or not name.strip():
             return
@@ -397,22 +425,18 @@ class HomeView(QWidget):
         self.db.increment_template_use(template.id)
 
         QMessageBox.information(
-            self, "تم الاستيراد بنجاح",
-            f"✅ تم استيراد {len(forms)} استمارة بنجاح\n"
-            f"القالب: {template.name}\n\n"
-            f"يمكنك الآن عرض النتائج أو تصديرها."
+            self, tr("import_success_title"),
+            tr("import_responses_success_msg", count=len(forms), template=template.name)
         )
         self.main_window.show_results()
 
     def _on_import_responses(self):
         """استيراد ملف إجابات رقمية بالاستناد إلى قالب محفوظ"""
-        # ─── الخطوة 1: اختيار القالب ──────────────────────────────────────────
         templates = self.db.load_all_templates()
         if not templates:
             QMessageBox.information(
-                self, "لا توجد قوالب",
-                "لا توجد قوالب محفوظة بعد.\n"
-                "يجب استيراد قالب أولاً قبل استيراد ملف الإجابات."
+                self, tr("no_templates_title"),
+                tr("need_template_first")
             )
             return
 
@@ -424,10 +448,9 @@ class HomeView(QWidget):
         if template is None:
             return
 
-        # ─── الخطوة 2: اختيار ملف الإجابات ───────────────────────────────────
         path, _ = QFileDialog.getOpenFileName(
-            self, "اختر ملف الإجابات الرقمية", "",
-            "ملفات Excel (*.xlsx *.xls)"
+            self, tr("choose_responses_file_title", template_name=template.name), "",
+            tr("excel_files_filter")
         )
         if not path:
             return
@@ -435,39 +458,36 @@ class HomeView(QWidget):
         try:
             forms, warnings = import_responses_from_excel(path, template)
         except ImportError as e:
-            QMessageBox.critical(self, "خطأ في الاستيراد", str(e))
+            QMessageBox.critical(self, tr("import_error"), str(e))
             return
 
         if warnings:
-            msg = (
-                f"تم الاستيراد مع {len(warnings)} تحذير:\n\n"
-                + "\n".join(f"• {w}" for w in warnings[:10])
-                + (f"\n... و{len(warnings) - 10} تحذير آخر" if len(warnings) > 10 else "")
+            msg = tr(
+                "import_responses_warning_msg",
+                count=len(warnings),
+                warnings="\n".join(f"• {w}" for w in warnings[:10])
             )
             reply = QMessageBox.warning(
-                self, "تحذيرات الاستيراد", msg + "\n\nهل تريد المتابعة؟",
+                self, tr("import_warnings_title"), msg,
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             if reply != QMessageBox.StandardButton.Yes:
                 return
 
-        # ─── الخطوة 3: اسم الجلسة ─────────────────────────────────────────────
         name, ok = QInputDialog.getText(
-            self, "اسم الجلسة",
-            f"تم استيراد {len(forms)} استمارة.\nأدخل اسماً لهذه الجلسة:",
-            text=f"جلسة {template.name}"
+            self, tr("session_name_title"),
+            tr("session_name_prompt_simple", count=len(forms)),
+            text=tr("default_session_name", template=template.name)
         )
         if not ok or not name.strip():
             return
 
-        # ─── الخطوة 4: حفظ الجلسة ─────────────────────────────────────────────
         session = Session(
             template_id=template.id,
             name=name.strip(),
             total_forms=len(forms)
         )
         session.forms = forms
-        # تصحيح form_index لكل استمارة
         for i, f in enumerate(session.forms):
             f.form_index = i
 
@@ -475,47 +495,44 @@ class HomeView(QWidget):
         self.db.increment_template_use(template.id)
 
         QMessageBox.information(
-            self, "تم الاستيراد",
-            f"تم استيراد {len(forms)} استمارة بنجاح.\n"
-            f"يمكنك الآن عرض النتائج أو تصديرها."
+            self, tr("import_success_title"),
+            tr("import_responses_success_msg", count=len(forms), template=template.name)
         )
         self.main_window.show_results()
  
     def _on_backup(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, "حفظ نسخة احتياطية",
+            self, tr("backup_save_title"),
             f"survey_backup_{datetime.now().strftime('%Y%m%d')}.db",
-            "قاعدة بيانات (*.db)"
+            tr("db_files_filter")
         )
         if not path:
             return
         try:
             self.db.backup_database(path)
-            QMessageBox.information(self, "نجاح", f"تم إنشاء النسخة الاحتياطية بنجاح في:\n{path}")
+            QMessageBox.information(self, tr("success"), tr("backup_success_msg", path=path))
         except Exception as e:
-            QMessageBox.critical(self, "خطأ", f"فشل النسخ الاحتياطي: {str(e)}")
+            QMessageBox.critical(self, tr("error"), tr("backup_failed_msg", error=str(e)))
  
     def _on_restore(self):
         reply = QMessageBox.warning(
-            self, "تأكيد استعادة البيانات",
-            "تحذير: استعادة البيانات سيؤدي إلى استبدال قاعدة البيانات الحالية بالكامل.\n"
-            "هل تريد الاستمرار؟",
+            self, tr("restore_confirm_title"),
+            tr("restore_confirm_msg"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
  
         path, _ = QFileDialog.getOpenFileName(
-            self, "اختر ملف النسخة الاحتياطية", "",
-            "قاعدة بيانات (*.db)"
+            self, tr("choose_backup_file"), "",
+            tr("db_files_filter")
         )
         if not path:
             return
  
         try:
             self.db.restore_database(path)
-            QMessageBox.information(self, "نجاح", "تمت استعادة البيانات بنجاح. سيتم إعادة تحميل الواجهة.")
+            QMessageBox.information(self, tr("success"), tr("restore_success_msg"))
             self.refresh()
         except Exception as e:
-            QMessageBox.critical(self, "خطأ", f"فشل الاستعادة: {str(e)}")
-from datetime import datetime
+            QMessageBox.critical(self, tr("error"), tr("restore_failed_msg", error=str(e)))
