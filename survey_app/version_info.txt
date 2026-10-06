@@ -1,8 +1,8 @@
 # UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 7, 0),
-    prodvers=(1, 0, 7, 0),
+    filevers=(1, 0, 8, 0),
+    prodvers=(1, 0, 8, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -18,12 +18,12 @@ VSVersionInfo(
           [
             StringStruct(u'CompanyName', u'CCS - Ahmed Akl'),
             StringStruct(u'FileDescription', u'Survey Data Entry Application'),
-            StringStruct(u'FileVersion', u'1.0.7.0'),
+            StringStruct(u'FileVersion', u'1.0.8.0'),
             StringStruct(u'InternalName', u'SurveyApp'),
             StringStruct(u'LegalCopyright', u'Copyright 2026 CCS - Ahmed Akl'),
             StringStruct(u'OriginalFilename', u'SurveyApp.exe'),
             StringStruct(u'ProductName', u'Survey App - تفريغ الاستبيانات'),
-            StringStruct(u'ProductVersion', u'1.0.7.0'),
+            StringStruct(u'ProductVersion', u'1.0.8.0'),
           ]
         )
       ]

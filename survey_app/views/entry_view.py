@@ -319,25 +319,36 @@ class EntryView(QWidget):
 
         # ─── عنوان الفاصل المقطعي ───────────────────────────────────────────
         if getattr(q, 'section_header', '').strip():
-            sec_frame = QFrame()
-            sec_frame.setStyleSheet(
-                "QFrame { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
-                "stop:0 #1A237E, stop:1 #3949AB); border-radius: 8px; border: none; }"
+            sec_card = QFrame()
+            sec_card.setStyleSheet(
+                "QFrame { "
+                "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A148C, stop:0.5 #6A1B9A, stop:1 #311B92); "
+                "border-radius: 12px; border: 2px solid #7B1FA2; "
+                "}"
             )
-            sec_layout = QHBoxLayout(sec_frame)
-            sec_layout.setContentsMargins(18, 12, 18, 12)
-            sec_layout.setSpacing(10)
-            
-            sec_icon = QLabel("📑")
-            sec_icon.setStyleSheet("font-size: 16px; border: none; background: transparent; color: white;")
-            sec_layout.addWidget(sec_icon)
-            
-            sec_text = QLabel(q.section_header.strip())
-            sec_text.setStyleSheet("font-size: 15px; font-weight: bold; color: white; border: none; background: transparent;")
+            sec_layout = QVBoxLayout(sec_card)
+            sec_layout.setContentsMargins(28, 20, 28, 20)
+            sec_layout.setSpacing(8)
+            sec_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            badge_lbl = QLabel(tr("section_prompt_title"))
+            badge_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            badge_lbl.setStyleSheet(
+                "color: #E1BEE7; font-size: 12px; font-weight: bold; "
+                "border: none; background: transparent;"
+            )
+            sec_layout.addWidget(badge_lbl)
+
+            sec_text = QLabel(f"📑  {q.section_header.strip()}")
+            sec_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            sec_text.setWordWrap(True)
+            sec_text.setStyleSheet(
+                "font-size: 19px; font-weight: bold; color: #FFFFFF; "
+                "border: none; background: transparent;"
+            )
             sec_layout.addWidget(sec_text)
-            sec_layout.addStretch()
-            
-            self.entry_layout.addWidget(sec_frame)
+
+            self.entry_layout.addWidget(sec_card)
 
         active_section = ""
         for i in range(q_idx, -1, -1):

@@ -1,5 +1,5 @@
 APP_NAME = "تفريغ الاستبيانات"
 APP_NAME_EN = "SurveyApp"
-APP_VERSION = "1.0.7"
+APP_VERSION = "1.0.8"
 APP_PUBLISHER = "CCS - Ahmed Akl"
 APP_URL = "https://maps.app.goo.gl/j2qG5vCzPNtPb9NM8"

@@ -139,36 +139,33 @@ class QuestionTextCellWidget(QWidget):
         self.edit_callback = edit_callback
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(4)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(8)
         
         header_text = getattr(q, 'section_header', '') or ''
         if header_text.strip():
             header_widget = QWidget()
             h_layout = QHBoxLayout(header_widget)
-            h_layout.setContentsMargins(8, 3, 8, 3)
-            h_layout.setSpacing(6)
+            h_layout.setContentsMargins(14, 8, 14, 8)
+            h_layout.setSpacing(8)
+            h_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             header_widget.setStyleSheet(
-                "background-color: #EDE7F6; border: 1px solid #D1C4E9; "
-                "border-radius: 4px;"
+                "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A148C, stop:0.5 #6A1B9A, stop:1 #4A148C); "
+                "border-radius: 6px; border: 1px solid #311B92;"
             )
             
-            icon_lbl = QLabel("📑")
-            icon_lbl.setStyleSheet("font-size: 11px; border: none; background: transparent;")
-            h_layout.addWidget(icon_lbl)
-            
-            sec_lbl = QLabel(tr("section_prefix", header=header_text.strip()))
+            sec_lbl = QLabel(f"📑  {header_text.strip()}")
+            sec_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             sec_lbl.setStyleSheet(
-                "font-weight: bold; color: #4A148C; font-size: 11px; "
+                "font-weight: bold; color: #FFFFFF; font-size: 13px; "
                 "border: none; background: transparent;"
             )
             h_layout.addWidget(sec_lbl)
-            h_layout.addStretch()
             layout.addWidget(header_widget)
             
         self.txt_lbl = QLabel(q.text)
         self.txt_lbl.setWordWrap(True)
-        self.txt_lbl.setStyleSheet("font-size: 12px; color: #1a1a2e; border: none; background: transparent;")
+        self.txt_lbl.setStyleSheet("font-size: 13px; font-weight: 500; color: #1a1a2e; border: none; background: transparent;")
         layout.addWidget(self.txt_lbl)
 
     def mouseDoubleClickEvent(self, event):
@@ -448,8 +445,11 @@ class ReviewView(QWidget):
 
         self.table.resizeRowsToContents()
         for row in range(self.table.rowCount()):
-            if self.table.rowHeight(row) < 56:
-                self.table.setRowHeight(row, 56)
+            q = self.template.questions[row] if row < len(self.template.questions) else None
+            has_section = bool(getattr(q, 'section_header', '').strip()) if q else False
+            min_h = 105 if has_section else 56
+            if self.table.rowHeight(row) < min_h:
+                self.table.setRowHeight(row, min_h)
 
         if target_row is not None and 0 <= target_row < self.table.rowCount():
             self._scroll_to_target_row(target_row)
