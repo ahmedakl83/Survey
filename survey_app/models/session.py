@@ -47,3 +47,8 @@ class Session:
         while len(self.forms) < self.total_forms:
             idx = len(self.forms)
             self.forms.append(FormResponse(form_index=idx))
+
+    def init_empty_forms(self):
+        """تهيئة استمارات فارغة للجلسة"""
+        self.ensure_forms()
+

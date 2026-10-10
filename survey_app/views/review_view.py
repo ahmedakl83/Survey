@@ -132,6 +132,71 @@ class AnswersCellWidget(QWidget):
         main_layout.addWidget(ans_container)
 
 
+class SectionHeaderRowWidget(QWidget):
+    def __init__(self, header_text: str, edit_callback=None, delete_callback=None, parent=None):
+        super().__init__(parent)
+        self.header_text = header_text
+        self.edit_callback = edit_callback
+        self.delete_callback = delete_callback
+        
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(0)
+        
+        banner = QFrame()
+        banner.setStyleSheet(
+            "QFrame {"
+            "  background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A148C, stop:0.5 #6A1B9A, stop:1 #4A148C);"
+            "  border-radius: 6px;"
+            "  border: 1px solid #38006B;"
+            "}"
+        )
+        banner_layout = QHBoxLayout(banner)
+        banner_layout.setContentsMargins(14, 6, 14, 6)
+        banner_layout.setSpacing(10)
+        
+        lbl_icon = QLabel("📑")
+        lbl_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
+        banner_layout.addWidget(lbl_icon)
+        
+        lbl_title = QLabel(header_text)
+        lbl_title.setStyleSheet("font-weight: bold; font-size: 13px; color: #FFFFFF; background: transparent; border: none;")
+        banner_layout.addWidget(lbl_title, 1)
+        
+        if self.edit_callback:
+            edit_btn = QPushButton("✎")
+            edit_btn.setFixedSize(24, 24)
+            edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            edit_btn.setToolTip(tr("btn_section_header"))
+            edit_btn.setStyleSheet(
+                "QPushButton { background: rgba(255,255,255,0.18); color: white; border: none; border-radius: 4px; font-weight: bold; font-size: 12px; } "
+                "QPushButton:hover { background: rgba(255,255,255,0.35); }"
+            )
+            edit_btn.clicked.connect(self.edit_callback)
+            banner_layout.addWidget(edit_btn)
+            
+        if self.delete_callback:
+            del_btn = QPushButton("✕")
+            del_btn.setFixedSize(24, 24)
+            del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            del_btn.setToolTip(tr("delete"))
+            del_btn.setStyleSheet(
+                "QPushButton { background: rgba(255,255,255,0.18); color: #FFCDD2; border: none; border-radius: 4px; font-weight: bold; font-size: 11px; } "
+                "QPushButton:hover { background: #E53935; color: white; }"
+            )
+            del_btn.clicked.connect(self.delete_callback)
+            banner_layout.addWidget(del_btn)
+            
+        layout.addWidget(banner)
+
+    def mouseDoubleClickEvent(self, event):
+        if self.edit_callback:
+            self.edit_callback()
+            event.accept()
+        else:
+            super().mouseDoubleClickEvent(event)
+
+
 class QuestionTextCellWidget(QWidget):
     def __init__(self, q: Question, edit_callback=None, parent=None):
         super().__init__(parent)
@@ -140,29 +205,9 @@ class QuestionTextCellWidget(QWidget):
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(8)
+        layout.setSpacing(0)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         
-        header_text = getattr(q, 'section_header', '') or ''
-        if header_text.strip():
-            header_widget = QWidget()
-            h_layout = QHBoxLayout(header_widget)
-            h_layout.setContentsMargins(14, 8, 14, 8)
-            h_layout.setSpacing(8)
-            h_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            header_widget.setStyleSheet(
-                "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A148C, stop:0.5 #6A1B9A, stop:1 #4A148C); "
-                "border-radius: 6px; border: 1px solid #311B92;"
-            )
-            
-            sec_lbl = QLabel(f"📑  {header_text.strip()}")
-            sec_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            sec_lbl.setStyleSheet(
-                "font-weight: bold; color: #FFFFFF; font-size: 13px; "
-                "border: none; background: transparent;"
-            )
-            h_layout.addWidget(sec_lbl)
-            layout.addWidget(header_widget)
-            
         self.txt_lbl = QLabel(q.text)
         self.txt_lbl.setWordWrap(True)
         self.txt_lbl.setStyleSheet("font-size: 13px; font-weight: 500; color: #1a1a2e; border: none; background: transparent;")
@@ -182,6 +227,7 @@ class ReviewView(QWidget):
         self.db = db
         self.main_window = main_window
         self.template: Template = None
+        self._row_map: list[tuple[str, int]] = []
         self._build_ui()
 
     def _build_ui(self):
@@ -357,16 +403,37 @@ class ReviewView(QWidget):
                 for ans in invalid_answers:
                     del q.branching_rules[ans]
 
+    def _table_row_to_q_idx(self, table_row: int) -> int:
+        if 0 <= table_row < len(self._row_map):
+            return self._row_map[table_row][1]
+        return -1
+
+    def _q_idx_to_table_row(self, q_idx: int) -> int:
+        for t_row, (r_type, idx) in enumerate(self._row_map):
+            if r_type == "question" and idx == q_idx:
+                return t_row
+        return -1
+
+    def _get_selected_q_indexes(self) -> list[int]:
+        selected_rows = set(idx.row() for idx in self.table.selectedIndexes())
+        q_indexes = set()
+        for r in selected_rows:
+            q_idx = self._table_row_to_q_idx(r)
+            if q_idx != -1:
+                q_indexes.add(q_idx)
+        return sorted(q_indexes)
+
     def _populate_table(self, target_row: int = None):
         if target_row is None:
-            selected_indexes = self.table.selectedIndexes()
-            if selected_indexes:
-                target_row = selected_indexes[0].row()
+            selected_q = self._get_selected_q_indexes()
+            if selected_q:
+                target_row = selected_q[0]
 
         current_scroll = self.table.verticalScrollBar().value()
 
         self._clean_and_sync_questions()
         self.table.setRowCount(0)
+        self._row_map = []
         
         type_options = [
             tr("qtype_general"),
@@ -384,31 +451,55 @@ class ReviewView(QWidget):
             "time": tr("subtype_time")
         }
 
+        table_row = 0
         for i, q in enumerate(self.template.questions):
-            self.table.insertRow(i)
+            header_text = getattr(q, 'section_header', '') or ''
+            if header_text.strip():
+                # إضافة صف مستقل للفاصل المقطعي يمتد على كامل عرض الجدول
+                self.table.insertRow(table_row)
+                self._row_map.append(("section", i))
+                self.table.setSpan(table_row, 0, 1, 4)
+                
+                sec_widget = SectionHeaderRowWidget(
+                    header_text=header_text.strip(),
+                    edit_callback=lambda idx=i: self._edit_section_header_at(idx),
+                    delete_callback=lambda idx=i: self._delete_section_header_at(idx),
+                    parent=self.table
+                )
+                self.table.setCellWidget(table_row, 0, sec_widget)
+                
+                sec_item = QTableWidgetItem()
+                sec_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                self.table.setItem(table_row, 0, sec_item)
+                
+                table_row += 1
 
-            # رقم
+            # إضافة صف السؤال
+            self.table.insertRow(table_row)
+            self._row_map.append(("question", i))
+
+            # رقم السؤال
             num_item = QTableWidgetItem(str(i + 1))
             num_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             num_item.setFlags(num_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            self.table.setItem(i, 0, num_item)
+            self.table.setItem(table_row, 0, num_item)
 
             # نص السؤال
             text_widget = QuestionTextCellWidget(
                 q=q,
-                edit_callback=lambda row=i, question=q: self._edit_question(row, question),
+                edit_callback=lambda idx=i, question=q: self._edit_question(idx, question),
                 parent=self.table
             )
-            self.table.setCellWidget(i, 1, text_widget)
+            self.table.setCellWidget(table_row, 1, text_widget)
 
             # النوع - ComboBox
             combo = QComboBox()
             combo.addItems(type_options)
             combo.setCurrentIndex(int(q.question_type))
             combo.currentIndexChanged.connect(
-                lambda idx, row=i: self._on_type_changed(row, idx)
+                lambda type_idx, idx=i: self._on_type_changed(idx, type_idx)
             )
-            self.table.setCellWidget(i, 2, combo)
+            self.table.setCellWidget(table_row, 2, combo)
 
             # الإجابات والتفريع المشروط
             if q.question_type == QuestionType.GENERAL:
@@ -418,50 +509,53 @@ class ReviewView(QWidget):
                 ans_item.setTextAlignment(get_text_alignment() | Qt.AlignmentFlag.AlignVCenter)
                 ans_item.setFlags(ans_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 ans_item.setToolTip(tr("subtype_tooltip"))
-                self.table.setItem(i, 3, ans_item)
-                self.table.removeCellWidget(i, 3)
+                self.table.setItem(table_row, 3, ans_item)
+                self.table.removeCellWidget(table_row, 3)
             elif q.question_type == QuestionType.LIKERT:
                 scale_picker = self._create_scale_picker_widget(i, q)
                 cell_widget = AnswersCellWidget(
                     row_idx=i,
                     q=q,
-                    edit_callback=lambda row=i, question=q: self._edit_question(row, question),
+                    edit_callback=lambda idx=i, question=q: self._edit_question(idx, question),
                     delete_branch_callback=self._delete_branching_rule,
                     scale_picker_widget=scale_picker,
                     parent=self
                 )
-                self.table.setCellWidget(i, 3, cell_widget)
+                self.table.setCellWidget(table_row, 3, cell_widget)
             else:
                 cell_widget = AnswersCellWidget(
                     row_idx=i,
                     q=q,
-                    edit_callback=lambda row=i, question=q: self._edit_question(row, question),
+                    edit_callback=lambda idx=i, question=q: self._edit_question(idx, question),
                     delete_branch_callback=self._delete_branching_rule,
                     parent=self
                 )
-                self.table.setCellWidget(i, 3, cell_widget)
+                self.table.setCellWidget(table_row, 3, cell_widget)
 
-            self._color_row(i, q.question_type)
+            self._color_row(table_row, q.question_type)
+            table_row += 1
 
         self.table.resizeRowsToContents()
-        for row in range(self.table.rowCount()):
-            q = self.template.questions[row] if row < len(self.template.questions) else None
-            has_section = bool(getattr(q, 'section_header', '').strip()) if q else False
-            min_h = 105 if has_section else 56
-            if self.table.rowHeight(row) < min_h:
-                self.table.setRowHeight(row, min_h)
+        for t_row, (r_type, _) in enumerate(self._row_map):
+            if r_type == "section":
+                self.table.setRowHeight(t_row, 50)
+            else:
+                min_h = 56
+                if self.table.rowHeight(t_row) < min_h:
+                    self.table.setRowHeight(t_row, min_h)
 
-        if target_row is not None and 0 <= target_row < self.table.rowCount():
+        if target_row is not None and 0 <= target_row < len(self.template.questions):
             self._scroll_to_target_row(target_row)
             QTimer.singleShot(50, lambda r=target_row: self._scroll_to_target_row(r))
         else:
             self.table.verticalScrollBar().setValue(current_scroll)
 
-    def _scroll_to_target_row(self, row: int):
-        if 0 <= row < self.table.rowCount():
-            self.table.setCurrentCell(row, 0)
-            self.table.selectRow(row)
-            item = self.table.item(row, 0)
+    def _scroll_to_target_row(self, q_idx: int):
+        t_row = self._q_idx_to_table_row(q_idx)
+        if t_row != -1 and 0 <= t_row < self.table.rowCount():
+            self.table.setCurrentCell(t_row, 0)
+            self.table.selectRow(t_row)
+            item = self.table.item(t_row, 0)
             if item:
                 self.table.scrollToItem(item, QAbstractItemView.ScrollHint.EnsureVisible)
 
@@ -479,10 +573,10 @@ class ReviewView(QWidget):
             if item:
                 item.setBackground(color)
 
-    def _on_type_changed(self, row: int, type_idx: int):
-        if row >= len(self.template.questions):
+    def _on_type_changed(self, q_idx: int, type_idx: int):
+        if q_idx >= len(self.template.questions):
             return
-        q = self.template.questions[row]
+        q = self.template.questions[q_idx]
         q.question_type = QuestionType(type_idx)
         if type_idx == 0:  # general
             q.answers = ["text"]
@@ -493,9 +587,9 @@ class ReviewView(QWidget):
                 q.answers = [tr("default_option_1"), tr("default_option_2")]
         
         q.branching_rules = {}
-        self._populate_table(target_row=row)
+        self._populate_table(target_row=q_idx)
 
-    def _create_scale_picker_widget(self, row: int, q: Question) -> QWidget:
+    def _create_scale_picker_widget(self, q_idx: int, q: Question) -> QWidget:
         container = QWidget()
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -508,18 +602,18 @@ class ReviewView(QWidget):
             if q.likert_scale_id == scale.id or (q.likert_scale_id == 0 and q.answers == scale.answers):
                 combo.setCurrentIndex(combo.count() - 1)
         
-        combo.currentIndexChanged.connect(lambda idx: self._on_scale_selected(row, q, combo))
+        combo.currentIndexChanged.connect(lambda idx: self._on_scale_selected(q_idx, q, combo))
         layout.addWidget(combo, 1)
         
         edit_btn = QPushButton("✎")
         edit_btn.setFixedSize(28, 28)
         edit_btn.setToolTip(tr("tooltip_edit_question"))
-        edit_btn.clicked.connect(lambda: self._edit_question(row, q))
+        edit_btn.clicked.connect(lambda: self._edit_question(q_idx, q))
         layout.addWidget(edit_btn)
         
         return container
 
-    def _on_scale_selected(self, row: int, q: Question, combo: QComboBox):
+    def _on_scale_selected(self, q_idx: int, q: Question, combo: QComboBox):
         idx = combo.currentIndex()
         if idx == 0:
             q.likert_scale_id = 0
@@ -532,17 +626,22 @@ class ReviewView(QWidget):
                     break
         
         q.branching_rules = {ans: target for ans, target in q.branching_rules.items() if ans in q.answers}
-        self._populate_table(target_row=row)
+        self._populate_table(target_row=q_idx)
 
     def _on_cell_double_clicked(self, row: int, col: int):
-        if col == 0 and row < len(self.template.questions):
-            self._reorder_question_prompt(row)
-        elif col in (1, 3) and row < len(self.template.questions):
-            q = self.template.questions[row]
-            self._edit_question(row, q)
+        if 0 <= row < len(self._row_map):
+            r_type, q_idx = self._row_map[row]
+            if r_type == "section":
+                self._edit_section_header_at(q_idx)
+            elif r_type == "question" and q_idx < len(self.template.questions):
+                if col == 0:
+                    self._reorder_question_prompt(q_idx)
+                elif col in (1, 3):
+                    q = self.template.questions[q_idx]
+                    self._edit_question(q_idx, q)
 
-    def _reorder_question_prompt(self, current_row: int):
-        current_num = current_row + 1
+    def _reorder_question_prompt(self, current_q_idx: int):
+        current_num = current_q_idx + 1
         max_num = len(self.template.questions)
         new_num, ok = QInputDialog.getInt(
             self, tr("reorder_title"),
@@ -550,21 +649,40 @@ class ReviewView(QWidget):
             current_num, 1, max_num, 1
         )
         if ok and new_num != current_num:
-            target_row = new_num - 1
+            target_q_idx = new_num - 1
             self._sync_from_table()
             
-            q = self.template.questions.pop(current_row)
-            self.template.questions.insert(target_row, q)
+            q = self.template.questions.pop(current_q_idx)
+            self.template.questions.insert(target_q_idx, q)
             
             self._clean_and_sync_questions()
-            self._populate_table(target_row=target_row)
+            self._populate_table(target_row=target_q_idx)
 
-    def _edit_question(self, row: int, q: Question):
+    def _edit_question(self, q_idx: int, q: Question):
         self._sync_from_table()
         dialog = EditQuestionDialog(q, self.template, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             dialog.apply_to_question(q)
-            self._populate_table(target_row=row)
+            self._populate_table(target_row=q_idx)
+
+    def _edit_section_header_at(self, q_idx: int):
+        if 0 <= q_idx < len(self.template.questions):
+            q = self.template.questions[q_idx]
+            current_header = getattr(q, 'section_header', '') or ''
+            text, ok = QInputDialog.getText(
+                self, tr("section_prompt_title"),
+                tr("section_prompt_msg", num=q_idx + 1),
+                text=current_header
+            )
+            if ok:
+                q.section_header = text.strip()
+                self._populate_table(target_row=q_idx)
+
+    def _delete_section_header_at(self, q_idx: int):
+        if 0 <= q_idx < len(self.template.questions):
+            q = self.template.questions[q_idx]
+            q.section_header = ""
+            self._populate_table(target_row=q_idx)
 
     def _set_branching_rule(self, source_q_idx: int, answer_text: str, target_q_idx: int):
         source_q = self.template.questions[source_q_idx]
@@ -572,11 +690,11 @@ class ReviewView(QWidget):
         source_q.branching_rules[answer_text] = target_q
         self._populate_table(target_row=source_q_idx)
 
-    def _delete_branching_rule(self, row_idx: int, answer_text: str):
-        q = self.template.questions[row_idx]
+    def _delete_branching_rule(self, q_idx: int, answer_text: str):
+        q = self.template.questions[q_idx]
         if answer_text in q.branching_rules:
             del q.branching_rules[answer_text]
-            self._populate_table(target_row=row_idx)
+            self._populate_table(target_row=q_idx)
 
     def eventFilter(self, source, event) -> bool:
         if source == self.table.viewport():
@@ -597,15 +715,16 @@ class ReviewView(QWidget):
             elif event.type() == QEvent.Type.Drop:
                 if event.mimeData().hasFormat("application/x-survey-branch"):
                     pos = event.position().toPoint()
-                    target_row = self.table.rowAt(pos.y())
+                    table_row = self.table.rowAt(pos.y())
+                    target_q_idx = self._table_row_to_q_idx(table_row)
                     
                     data = event.mimeData().data("application/x-survey-branch").data().decode('utf-8')
                     source_idx_str, ans_text = data.split(":", 1)
                     source_idx = int(source_idx_str)
                     
-                    if target_row != -1 and target_row > source_idx:
-                        self._set_branching_rule(source_idx, ans_text, target_row)
-                    elif target_row != -1 and target_row <= source_idx:
+                    if target_q_idx != -1 and target_q_idx > source_idx:
+                        self._set_branching_rule(source_idx, ans_text, target_q_idx)
+                    elif target_q_idx != -1 and target_q_idx <= source_idx:
                         QMessageBox.warning(
                             self, tr("warning"),
                             "التفريع المشروط يجب أن ينتقل إلى سؤال لاحق وليس سابقاً." if is_rtl() else "Branching target must be a subsequent question."
@@ -626,78 +745,64 @@ class ReviewView(QWidget):
             self._populate_table(target_row=target_idx)
 
     def _duplicate_selected(self):
-        selected = self.table.selectedIndexes()
-        if not selected:
+        selected_q = self._get_selected_q_indexes()
+        if not selected_q:
             return
-        row = selected[0].row()
-        if row >= len(self.template.questions):
+        q_idx = selected_q[0]
+        if q_idx >= len(self.template.questions):
             return
 
         self._sync_from_table()
-        original = self.template.questions[row]
+        original = self.template.questions[q_idx]
         new_q = Question(
             text=f"{original.text} ({tr('duplicate_success_title')})",
             question_type=original.question_type,
             likert_scale_id=original.likert_scale_id,
-            section_header=getattr(original, 'section_header', '') or ''
+            section_header=""
         )
         new_q.answers = list(original.answers)
         
-        target_idx = row + 1
+        target_idx = q_idx + 1
         self.template.questions.insert(target_idx, new_q)
         self._populate_table(target_row=target_idx)
         QMessageBox.information(self, tr("duplicate_success_title"), tr("duplicate_success_msg", text=original.text))
 
     def _set_section_header_prompt(self):
-        selected = self.table.selectedIndexes()
-        if not selected:
+        selected_q = self._get_selected_q_indexes()
+        if not selected_q:
             QMessageBox.information(self, tr("warning"), tr("select_question_first_section"))
             return
         
-        row = selected[0].row()
-        if row >= len(self.template.questions):
+        q_idx = selected_q[0]
+        if q_idx >= len(self.template.questions):
             return
             
-        q = self.template.questions[row]
-        current_header = getattr(q, 'section_header', '') or ''
-        
-        text, ok = QInputDialog.getText(
-            self, tr("section_prompt_title"),
-            tr("section_prompt_msg", num=row + 1),
-            text=current_header
-        )
-        if ok:
-            q.section_header = text.strip()
-            self._populate_table(target_row=row)
+        self._edit_section_header_at(q_idx)
 
     def _delete_selected(self):
-        rows = sorted(
-            set(idx.row() for idx in self.table.selectedIndexes()),
-            reverse=True
-        )
-        if not rows:
+        q_indexes = self._get_selected_q_indexes()
+        if not q_indexes:
             return
 
         reply = QMessageBox.question(
             self, tr("confirm_delete"),
-            tr("delete_questions_confirm_msg", count=len(rows)),
+            tr("delete_questions_confirm_msg", count=len(q_indexes)),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
-            for row in rows:
-                if row < len(self.template.questions):
-                    self.template.questions.pop(row)
-            next_row = max(0, min(rows) - 1) if self.template.questions else None
-            self._populate_table(target_row=next_row)
+            for q_idx in sorted(q_indexes, reverse=True):
+                if q_idx < len(self.template.questions):
+                    self.template.questions.pop(q_idx)
+            next_q_idx = max(0, min(q_indexes) - 1) if self.template.questions else None
+            self._populate_table(target_row=next_q_idx)
 
     def _sync_from_table(self):
-        for i, q in enumerate(self.template.questions):
-            cell_widget = self.table.cellWidget(i, 1)
-            if isinstance(cell_widget, QuestionTextCellWidget):
-                pass
-            combo = self.table.cellWidget(i, 2)
-            if isinstance(combo, QComboBox):
-                q.question_type = QuestionType(combo.currentIndex())
+        for t_row, (r_type, q_idx) in enumerate(self._row_map):
+            if r_type == "question" and q_idx < len(self.template.questions):
+                q = self.template.questions[q_idx]
+                combo = self.table.cellWidget(t_row, 2)
+                if isinstance(combo, QComboBox):
+                    q.question_type = QuestionType(combo.currentIndex())
 
     def _save_changes(self):
         self._sync_from_table()
@@ -732,12 +837,16 @@ class ReviewView(QWidget):
         if not ok:
             return
 
+        fresh_template = self.db.load_template(self.template.id)
+        if fresh_template:
+            self.template = fresh_template
+
         session = Session(
             template_id=self.template.id,
             name=name.strip(),
             total_forms=total_forms
         )
-        session.init_empty_forms()
+        session.ensure_forms()
 
         session_id = self.db.save_session(session)
         session.id = session_id
@@ -802,7 +911,8 @@ class ReviewView(QWidget):
         self.main_window.show_results()
  
     def _manage_likert_scales(self):
-        selected_idx = self.table.selectedIndexes()[0].row() if self.table.selectedIndexes() else 0
+        selected_q = self._get_selected_q_indexes()
+        selected_idx = selected_q[0] if selected_q else 0
         dialog = LikertScalesManagerDialog(self.template, self)
         dialog.exec()
         self.load_template(self.template, target_row=selected_idx)

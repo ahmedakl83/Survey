@@ -1,6 +1,6 @@
 #define AppName "Survey App"
 #define AppNameAr "تفريغ الاستبيانات"
-#define AppVersion "1.0.8"
+#define AppVersion "1.0.9"
 #define AppPublisher "CCS - Ahmed Akl"
 #define AppExeName "SurveyApp.exe"
 #define AppURL "https://maps.app.goo.gl/j2qG5vCzPNtPb9NM8"

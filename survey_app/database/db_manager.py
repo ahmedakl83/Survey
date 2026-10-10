@@ -137,7 +137,7 @@ class DatabaseManager:
                     elif isinstance(target_q, int):
                         branching_data[ans] = target_q
 
-            conn.execute(
+            cur = conn.execute(
                 """INSERT INTO questions
                    (template_id, column_index, text, question_type, answers, likert_scale_id, branching, section_header)
                    VALUES (?,?,?,?,?,?,?,?)""",
@@ -146,6 +146,7 @@ class DatabaseManager:
                  json.dumps(branching_data, ensure_ascii=False),
                  getattr(q, 'section_header', '') or "")
             )
+            q.id = cur.lastrowid
         conn.commit()
         return template_id
 
@@ -180,7 +181,7 @@ class DatabaseManager:
                     elif isinstance(target_q, int):
                         branching_data[ans] = target_q
 
-            conn.execute(
+            cur = conn.execute(
                 """INSERT INTO questions
                    (template_id, column_index, text, question_type, answers, likert_scale_id, branching, section_header)
                    VALUES (?,?,?,?,?,?,?,?)""",
@@ -189,6 +190,7 @@ class DatabaseManager:
                  json.dumps(branching_data, ensure_ascii=False),
                  getattr(q, 'section_header', '') or "")
             )
+            q.id = cur.lastrowid
         conn.commit()
 
     def load_all_templates(self) -> List[Template]:
