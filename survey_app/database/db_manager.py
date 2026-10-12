@@ -315,12 +315,14 @@ class DatabaseManager:
     def save_session(self, session: Session) -> int:
         conn = self._get_conn()
         now = datetime.now().isoformat()
+        created_at = session.created_at.isoformat() if hasattr(session, "created_at") and session.created_at else now
+        updated_at = session.updated_at.isoformat() if hasattr(session, "updated_at") and session.updated_at else now
         cur = conn.execute(
             """INSERT INTO sessions
                (template_id, name, created_at, updated_at, total_forms,
                 current_form_index, current_question_index)
                VALUES (?,?,?,?,?,?,?)""",
-            (session.template_id, session.name, now, now,
+            (session.template_id, session.name, created_at, updated_at,
              session.total_forms, session.current_form_index,
              session.current_question_index)
         )
@@ -328,6 +330,16 @@ class DatabaseManager:
         self._save_form_responses(session)
         conn.commit()
         return session.id
+
+    def get_session_by_name(self, name: str) -> Optional[Session]:
+        conn = self._get_conn()
+        row = conn.execute(
+            "SELECT * FROM sessions WHERE name = ? ORDER BY updated_at DESC LIMIT 1",
+            (name,)
+        ).fetchone()
+        if not row:
+            return None
+        return self.load_session(row["id"])
 
     def update_session(self, session: Session):
         conn = self._get_conn()

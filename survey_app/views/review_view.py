@@ -440,7 +440,8 @@ class ReviewView(QWidget):
             tr("qtype_demographic_single"),
             tr("qtype_demographic_multiple"),
             tr("qtype_likert"),
-            tr("qtype_demographic_single_other")
+            tr("qtype_demographic_single_other"),
+            tr("qtype_demographic_multiple_other")
         ]
 
         subtypes_labels = {
@@ -566,6 +567,7 @@ class ReviewView(QWidget):
             QuestionType.DEMOGRAPHIC_MULTIPLE: "#E3F2FD",
             QuestionType.LIKERT: "#FFF8E1",
             QuestionType.DEMOGRAPHIC_SINGLE_OTHER: "#E8F5E9",
+            QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER: "#E3F2FD",
         }
         color = QColor(colors.get(qtype, "#FFFFFF"))
         for col in [0, 3]:
@@ -1055,7 +1057,8 @@ class AddQuestionDialog(QDialog):
             tr("qtype_combo_single"),
             tr("qtype_combo_multiple"),
             tr("qtype_combo_likert"),
-            tr("qtype_combo_single_other")
+            tr("qtype_combo_single_other"),
+            tr("qtype_combo_multiple_other")
         ])
         self.type_combo.currentIndexChanged.connect(self._on_type_changed)
         layout.addWidget(self.type_combo)
@@ -1130,9 +1133,9 @@ class AddQuestionDialog(QDialog):
     def _on_type_changed(self, index):
         if index == 0:  # عام
             self.ans_stack.setCurrentIndex(0)
-        elif index in (1, 2, 4):  # ديموغرافي
+        elif index in (1, 2, 4, 5):  # ديموغرافي
             self.ans_stack.setCurrentIndex(1)
-            if index == 4:
+            if index in (4, 5):
                 self.manual_lbl.setText(tr("options_last_other"))
                 if not self.manual_edit.toPlainText().strip():
                     self.manual_edit.setPlainText(f"{tr('default_option_1')}\n{tr('default_option_2')}\n{tr('default_option_other')}")
@@ -1156,7 +1159,7 @@ class AddQuestionDialog(QDialog):
             return
         
         idx = self.type_combo.currentIndex()
-        if idx in (1, 2, 4) and not self.manual_edit.toPlainText().strip():
+        if idx in (1, 2, 4, 5) and not self.manual_edit.toPlainText().strip():
             QMessageBox.warning(self, tr("warning"), tr("enter_options_warning"))
             return
         
@@ -1177,7 +1180,7 @@ class AddQuestionDialog(QDialog):
         if qtype == QuestionType.GENERAL:
             subtype = self.general_subtype_combo.currentData() or "text"
             q.answers = [subtype]
-        elif qtype in (QuestionType.DEMOGRAPHIC_SINGLE, QuestionType.DEMOGRAPHIC_MULTIPLE, QuestionType.DEMOGRAPHIC_SINGLE_OTHER):
+        elif qtype in (QuestionType.DEMOGRAPHIC_SINGLE, QuestionType.DEMOGRAPHIC_MULTIPLE, QuestionType.DEMOGRAPHIC_SINGLE_OTHER, QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER):
             q.answers = [l.strip() for l in self.manual_edit.toPlainText().splitlines() if l.strip()]
         elif qtype == QuestionType.LIKERT:
             scale_id = self.scale_combo.currentData()
@@ -1228,7 +1231,8 @@ class EditQuestionDialog(QDialog):
             tr("qtype_combo_single"),
             tr("qtype_combo_multiple"),
             tr("qtype_combo_likert"),
-            tr("qtype_combo_single_other")
+            tr("qtype_combo_single_other"),
+            tr("qtype_combo_multiple_other")
         ])
         self.type_combo.setCurrentIndex(int(self.question.question_type))
         self.type_combo.currentIndexChanged.connect(self._on_type_changed)
@@ -1310,9 +1314,9 @@ class EditQuestionDialog(QDialog):
     def _on_type_changed(self, index):
         if index == 0:  # general
             self.ans_stack.setCurrentIndex(0)
-        elif index in (1, 2, 4):  # demographic
+        elif index in (1, 2, 4, 5):  # demographic
             self.ans_stack.setCurrentIndex(1)
-            if index == 4:
+            if index in (4, 5):
                 self.manual_lbl.setText(tr("options_last_other"))
                 if not self.manual_edit.toPlainText().strip():
                     self.manual_edit.setPlainText(f"{tr('default_option_1')}\n{tr('default_option_2')}\n{tr('default_option_other')}")
@@ -1336,7 +1340,7 @@ class EditQuestionDialog(QDialog):
             return
 
         idx = self.type_combo.currentIndex()
-        if idx in (1, 2, 4) and not self.manual_edit.toPlainText().strip():
+        if idx in (1, 2, 4, 5) and not self.manual_edit.toPlainText().strip():
             QMessageBox.warning(self, tr("warning"), tr("enter_options_warning"))
             return
 
@@ -1357,7 +1361,7 @@ class EditQuestionDialog(QDialog):
             q.answers = [subtype]
             q.likert_scale_id = 0
             q.branching_rules = {}
-        elif new_qtype in (QuestionType.DEMOGRAPHIC_SINGLE, QuestionType.DEMOGRAPHIC_MULTIPLE, QuestionType.DEMOGRAPHIC_SINGLE_OTHER):
+        elif new_qtype in (QuestionType.DEMOGRAPHIC_SINGLE, QuestionType.DEMOGRAPHIC_MULTIPLE, QuestionType.DEMOGRAPHIC_SINGLE_OTHER, QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER):
             q.answers = [l.strip() for l in self.manual_edit.toPlainText().splitlines() if l.strip()]
             q.likert_scale_id = 0
             q.branching_rules = {ans: target for ans, target in q.branching_rules.items() if ans in q.answers}

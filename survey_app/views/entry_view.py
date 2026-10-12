@@ -378,6 +378,7 @@ class EntryView(QWidget):
             QuestionType.DEMOGRAPHIC_MULTIPLE: "#1565C0",
             QuestionType.LIKERT: "#E65100",
             QuestionType.DEMOGRAPHIC_SINGLE_OTHER: "#2E7D32",
+            QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER: "#1565C0",
         }
         color = badge_colors.get(q.question_type, "#546E7A")
         type_badge.setStyleSheet(
@@ -411,6 +412,8 @@ class EntryView(QWidget):
             self._render_general_input(card_layout, q, current_answer, q_idx)
         elif q.question_type == QuestionType.DEMOGRAPHIC_MULTIPLE:
             self._render_multiple_input(card_layout, q, current_answer, q_idx)
+        elif q.question_type == QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER:
+            self._render_multiple_other_input(card_layout, q, current_answer, q_idx)
         elif q.question_type == QuestionType.DEMOGRAPHIC_SINGLE_OTHER:
             self._render_single_other_input(card_layout, q, current_answer, q_idx)
         else:
@@ -418,6 +421,17 @@ class EntryView(QWidget):
 
         self.entry_layout.addWidget(card)
         self.entry_layout.addStretch()
+
+    def _confirm_general_answer(self, q: Question, answer: str, q_idx: int, widget=None):
+        raw = answer.strip()
+        if not raw:
+            if q.allows_empty:
+                self._confirm_answer(q, "", q_idx)
+            else:
+                if widget:
+                    self._flash_error(widget, "font-size: 15px; padding: 10px;")
+            return
+        self._confirm_answer(q, raw, q_idx)
 
     def _render_general_input(self, layout, q: Question, current: str, q_idx: int):
         subtype = q.answers[0] if q.answers else "text"
@@ -428,7 +442,7 @@ class EntryView(QWidget):
             layout.addWidget(lbl)
             
             self._text_field = QuickTextEdit(
-                on_confirm=lambda: self._confirm_answer(q, self._text_field.toPlainText(), q_idx)
+                on_confirm=lambda: self._confirm_general_answer(q, self._text_field.toPlainText(), q_idx, self._text_field)
             )
             self._text_field.setPlainText(current)
             self._text_field.setPlaceholderText(tr("type_paragraph_placeholder"))
@@ -442,7 +456,7 @@ class EntryView(QWidget):
                 "font-weight: bold; padding: 8px 16px; border-radius: 6px;"
             )
             btn_confirm.clicked.connect(
-                lambda: self._confirm_answer(q, self._text_field.toPlainText(), q_idx)
+                lambda: self._confirm_general_answer(q, self._text_field.toPlainText(), q_idx, self._text_field)
             )
             layout.addWidget(btn_confirm)
             
@@ -454,7 +468,7 @@ class EntryView(QWidget):
             layout.addWidget(lbl)
             
             self._input_field = QuickNumberInput(
-                on_confirm=lambda: self._confirm_answer(q, self._input_field.text(), q_idx)
+                on_confirm=lambda: self._confirm_general_answer(q, self._input_field.text(), q_idx, self._input_field)
             )
             self._input_field.setValidator(QDoubleValidator())
             self._input_field.setText(current)
@@ -486,7 +500,7 @@ class EntryView(QWidget):
                 "background-color: #1565C0; color: white; font-size: 13px; "
                 "font-weight: bold; padding: 8px 16px; border-radius: 6px;"
             )
-            confirm_fn = lambda: self._confirm_answer(q, self._date_field.date().toString("yyyy-MM-dd"), q_idx)
+            confirm_fn = lambda: self._confirm_general_answer(q, self._date_field.date().toString("yyyy-MM-dd"), q_idx, self._date_field)
             btn_confirm.clicked.connect(confirm_fn)
             self._date_field.lineEdit().returnPressed.connect(confirm_fn)
             layout.addWidget(btn_confirm)
@@ -514,7 +528,7 @@ class EntryView(QWidget):
                 "background-color: #1565C0; color: white; font-size: 13px; "
                 "font-weight: bold; padding: 8px 16px; border-radius: 6px;"
             )
-            confirm_fn = lambda: self._confirm_answer(q, self._time_field.time().toString("HH:mm"), q_idx)
+            confirm_fn = lambda: self._confirm_general_answer(q, self._time_field.time().toString("HH:mm"), q_idx, self._time_field)
             btn_confirm.clicked.connect(confirm_fn)
             self._time_field.lineEdit().returnPressed.connect(confirm_fn)
             layout.addWidget(btn_confirm)
@@ -527,7 +541,7 @@ class EntryView(QWidget):
             layout.addWidget(lbl)
 
             self._input_field = QuickNumberInput(
-                on_confirm=lambda: self._confirm_answer(q, self._input_field.text(), q_idx)
+                on_confirm=lambda: self._confirm_general_answer(q, self._input_field.text(), q_idx, self._input_field)
             )
             self._input_field.setText(current)
             self._input_field.setPlaceholderText(tr("type_text_placeholder"))
@@ -621,13 +635,24 @@ class EntryView(QWidget):
         num_lbl.setStyleSheet("color: #546E7A; font-size: 12px; border: none;")
         num_row.addWidget(num_lbl)
 
-        self._multi_num_input = QLineEdit()
+        self._multi_num_input = QuickNumberInput(
+            on_confirm=lambda: self._confirm_multiple(q, q_idx)
+        )
         self._multi_num_input.setPlaceholderText(tr("multiple_nums_placeholder"))
         self._multi_num_input.setFixedWidth(120)
+        self._multi_num_input.setStyleSheet(
+            "font-size: 16px; font-weight: bold; padding: 6px 10px; "
+            "border: 2px solid #1565C0; border-radius: 6px; background: white;"
+        )
         self._multi_num_input.textChanged.connect(
             lambda text: self._sync_checkboxes_from_text(text, q)
         )
         num_row.addWidget(self._multi_num_input)
+
+        enter_hint = QLabel("Enter / Tab")
+        enter_hint.setStyleSheet("color: #90A4AE; font-size: 11px; border: none;")
+        num_row.addWidget(enter_hint)
+
         num_row.addStretch()
         layout.addLayout(num_row)
 
@@ -648,6 +673,161 @@ class EntryView(QWidget):
                 cb.setChecked(i in nums)
         except Exception:
             pass
+
+    def _render_multiple_other_input(self, layout, q: Question, current: str, q_idx: int):
+        if not q.answers or len(q.answers) < 2:
+            q.answers = [tr("default_option_1"), tr("default_option_other")]
+
+        hint = QLabel(tr("multiple_hint"))
+        hint.setStyleSheet("color: #546E7A; font-size: 12px; border: none;")
+        layout.addWidget(hint)
+
+        current_parts = [p.strip() for p in current.split(",") if p.strip()] if current else []
+        standard_answers = q.answers[:-1]
+        other_default = q.answers[-1]
+
+        selected_standards = set()
+        other_text_val = ""
+        is_other_checked = False
+
+        for p in current_parts:
+            if p in standard_answers:
+                selected_standards.add(p)
+            else:
+                is_other_checked = True
+                if p != other_default:
+                    other_text_val = p
+
+        self._checkboxes = []
+
+        # الخيارات المحددة مسبقاً
+        for i, ans in enumerate(standard_answers, start=1):
+            cb = QCheckBox(f"{i}.  {ans}")
+            cb.setLayoutDirection(get_layout_direction())
+            cb.setStyleSheet("font-size: 14px; border: none; padding: 4px;")
+            cb.setChecked(ans in selected_standards)
+            self._checkboxes.append((cb, ans))
+            layout.addWidget(cb)
+
+        # خيار "أخرى" مع حقل الإدخال الحر
+        other_idx = len(q.answers)
+        other_row = QHBoxLayout()
+        other_row.setContentsMargins(0, 0, 0, 0)
+        other_row.setSpacing(10)
+
+        self._other_checkbox = QCheckBox(f"{other_idx}.  {other_default}")
+        self._other_checkbox.setLayoutDirection(get_layout_direction())
+        self._other_checkbox.setStyleSheet("font-size: 14px; border: none; padding: 4px;")
+        self._other_checkbox.setChecked(is_other_checked)
+        self._checkboxes.append((self._other_checkbox, other_default))
+        other_row.addWidget(self._other_checkbox)
+
+        self._other_text_input = QLineEdit()
+        self._other_text_input.setPlaceholderText(tr("type_other_placeholder"))
+        self._other_text_input.setStyleSheet(
+            "QLineEdit { font-size: 14px; padding: 6px 10px; border: 1.5px solid #1565C0; "
+            "border-radius: 6px; background: white; color: #1a1a2e; }"
+            "QLineEdit:disabled { background: #F5F5F5; border-color: #CFD8DC; color: #9E9E9E; }"
+        )
+        self._other_text_input.setEnabled(is_other_checked)
+        if other_text_val:
+            self._other_text_input.setText(other_text_val)
+
+        self._other_checkbox.toggled.connect(self._on_multi_other_toggled)
+        self._other_text_input.returnPressed.connect(lambda: self._confirm_multiple_other(q, q_idx))
+        other_row.addWidget(self._other_text_input, 1)
+
+        other_widget = QWidget()
+        other_widget.setLayout(other_row)
+        layout.addWidget(other_widget)
+
+        # صف الإدخال السريع بالأرقام
+        num_row = QHBoxLayout()
+        num_lbl = QLabel(tr("multiple_nums_lbl"))
+        num_lbl.setStyleSheet("color: #546E7A; font-size: 12px; border: none;")
+        num_row.addWidget(num_lbl)
+
+        self._multi_num_input = QuickNumberInput(
+            on_confirm=lambda: self._handle_multi_other_num_enter(q, q_idx)
+        )
+        self._multi_num_input.setPlaceholderText(tr("multiple_nums_placeholder"))
+        self._multi_num_input.setFixedWidth(120)
+        self._multi_num_input.setStyleSheet(
+            "font-size: 16px; font-weight: bold; padding: 6px 10px; "
+            "border: 2px solid #1565C0; border-radius: 6px; background: white;"
+        )
+        self._multi_num_input.textChanged.connect(
+            lambda text: self._sync_multi_other_checkboxes_from_text(text, q)
+        )
+        num_row.addWidget(self._multi_num_input)
+
+        enter_hint = QLabel("Enter / Tab")
+        enter_hint.setStyleSheet("color: #90A4AE; font-size: 11px; border: none;")
+        num_row.addWidget(enter_hint)
+
+        num_row.addStretch()
+        layout.addLayout(num_row)
+
+        btn_confirm = QPushButton(tr("btn_confirm_next"))
+        btn_confirm.setStyleSheet(
+            "background-color: #1565C0; color: white; font-size: 14px; "
+            "font-weight: bold; padding: 10px; border-radius: 6px; margin-top: 8px;"
+        )
+        btn_confirm.clicked.connect(lambda: self._confirm_multiple_other(q, q_idx))
+        layout.addWidget(btn_confirm)
+
+        QTimer.singleShot(0, self._multi_num_input.setFocus)
+
+    def _on_multi_other_toggled(self, checked: bool):
+        self._other_text_input.setEnabled(checked)
+        if checked:
+            self._other_text_input.setFocus()
+
+    def _sync_multi_other_checkboxes_from_text(self, text: str, q: Question):
+        try:
+            nums = {int(n.strip()) for n in text.split(",") if n.strip().isdigit()}
+            for i, (cb, ans) in enumerate(self._checkboxes, start=1):
+                cb.setChecked(i in nums)
+        except Exception:
+            pass
+
+    def _handle_multi_other_num_enter(self, q: Question, q_idx: int):
+        other_cb, _ = self._checkboxes[-1]
+        
+        # إذا تم تحديد خيار "أخرى" ولم يُكتب نص حر بعد، انتقل لكتابة النص الحر
+        if other_cb.isChecked() and not self._other_text_input.text().strip():
+            self._other_text_input.setEnabled(True)
+            self._other_text_input.setFocus()
+            self._other_text_input.selectAll()
+            return
+            
+        self._confirm_multiple_other(q, q_idx)
+
+    def _confirm_multiple_other(self, q: Question, q_idx: int):
+        selected = []
+        for cb, ans in self._checkboxes[:-1]:
+            if cb.isChecked():
+                selected.append(ans)
+
+        other_cb, other_ans = self._checkboxes[-1]
+        other_text = self._other_text_input.text().strip()
+        if other_cb.isChecked() or other_text:
+            if other_text:
+                selected.append(other_text)
+            else:
+                selected.append(other_ans)
+
+        if not selected:
+            if q.allows_empty:
+                self._confirm_answer(q, "", q_idx)
+            else:
+                self._flash_error(
+                    self._multi_num_input,
+                    "font-size: 16px; font-weight: bold; padding: 6px 10px; border: 2px solid #1565C0; border-radius: 6px; background: white;"
+                )
+            return
+
+        self._confirm_answer(q, ",".join(selected), q_idx)
 
     def _render_single_other_input(self, layout, q: Question, current: str, q_idx: int):
         if not q.answers:
@@ -737,7 +917,7 @@ class EntryView(QWidget):
             row_widget = QWidget()
             row_widget.setLayout(btn_layout)
             layout.addWidget(row_widget)
-            
+
         btn_confirm = QPushButton(tr("btn_confirm_other_next"))
         btn_confirm.setStyleSheet(
             "background-color: #1565C0; color: white; font-size: 13px; "
@@ -759,19 +939,42 @@ class EntryView(QWidget):
         
     def _confirm_other_text(self, q: Question, q_idx: int):
         btn = self._radio_group.checkedButton()
-        btn_id = self._radio_group.id(btn) if btn else len(q.answers)
-        
+        if not btn:
+            if q.allows_empty:
+                self._confirm_answer(q, "", q_idx)
+            else:
+                self._flash_error(
+                    self._num_input,
+                    "font-size: 20px; font-weight: bold; padding: 6px 10px; border: 2px solid #1565C0; border-radius: 6px; background: white; color: #1565C0;"
+                )
+            return
+
+        btn_id = self._radio_group.id(btn)
         if btn_id == len(q.answers):
             text = self._other_text_input.text().strip()
             if not text:
+                if q.allows_empty:
+                    self._confirm_answer(q, "", q_idx)
+                    return
                 text = q.answers[-1] if q.answers else tr("default_option_other")
             self._confirm_answer(q, text, q_idx)
         elif 1 <= btn_id <= len(q.answers):
             self._confirm_answer(q, q.answers[btn_id - 1], q_idx)
             
     def _confirm_by_number_other(self, q: Question, num_text: str, q_idx: int):
+        raw = num_text.strip()
+        if not raw:
+            if q.allows_empty:
+                self._confirm_answer(q, "", q_idx)
+            else:
+                self._flash_error(
+                    self._num_input,
+                    "font-size: 20px; font-weight: bold; padding: 6px 10px; border: 2px solid #1565C0; border-radius: 6px; background: white; color: #1565C0;"
+                )
+            return
+
         try:
-            num = int(num_text.strip())
+            num = int(raw)
             if 1 <= num <= len(q.answers):
                 btn = self._radio_group.button(num)
                 if btn:
@@ -783,14 +986,15 @@ class EntryView(QWidget):
                 else:
                     self._confirm_answer(q, q.answers[num - 1], q_idx)
             else:
-                self._num_input.setStyleSheet(
-                    "font-size: 20px; font-weight: bold; padding: 6px 10px; "
-                    "border: 2px solid #C62828; border-radius: 6px; "
-                    "background: #FFEBEE; color: #C62828;"
+                self._flash_error(
+                    self._num_input,
+                    "font-size: 20px; font-weight: bold; padding: 6px 10px; border: 2px solid #1565C0; border-radius: 6px; background: white; color: #1565C0;"
                 )
-                QTimer.singleShot(600, self._reset_num_input_style)
         except ValueError:
-            pass
+            self._flash_error(
+                self._num_input,
+                "font-size: 20px; font-weight: bold; padding: 6px 10px; border: 2px solid #1565C0; border-radius: 6px; background: white; color: #1565C0;"
+            )
 
     def _confirm_answer(self, q: Question, answer: str, q_idx: int):
         form = self.session.get_current_form()
@@ -813,22 +1017,52 @@ class EntryView(QWidget):
             self._go_to_question(q_idx + 1)
 
     def _confirm_by_number(self, q: Question, num_text: str, q_idx: int):
+        raw = num_text.strip()
+        if not raw:
+            if q.allows_empty:
+                self._confirm_answer(q, "", q_idx)
+            else:
+                self._flash_error(
+                    self._num_input,
+                    "font-size: 20px; font-weight: bold; padding: 6px 10px; border: 2px solid #1565C0; border-radius: 6px; background: white; color: #1565C0;"
+                )
+            return
+
         try:
-            num = int(num_text.strip())
+            num = int(raw)
             if 1 <= num <= len(q.answers):
                 btn = self._radio_group.button(num)
                 if btn:
                     btn.setChecked(True)
                 self._confirm_answer(q, q.answers[num - 1], q_idx)
             else:
-                self._num_input.setStyleSheet(
-                    "font-size: 20px; font-weight: bold; padding: 6px 10px; "
-                    "border: 2px solid #C62828; border-radius: 6px; "
-                    "background: #FFEBEE; color: #C62828;"
+                self._flash_error(
+                    self._num_input,
+                    "font-size: 20px; font-weight: bold; padding: 6px 10px; border: 2px solid #1565C0; border-radius: 6px; background: white; color: #1565C0;"
                 )
-                QTimer.singleShot(600, self._reset_num_input_style)
         except ValueError:
-            pass
+            self._flash_error(
+                self._num_input,
+                "font-size: 20px; font-weight: bold; padding: 6px 10px; border: 2px solid #1565C0; border-radius: 6px; background: white; color: #1565C0;"
+            )
+
+    def _flash_error(self, widget, default_style, error_style=None):
+        if not widget:
+            return
+        if error_style is None:
+            error_style = (
+                "font-size: 16px; font-weight: bold; padding: 6px 10px; "
+                "border: 2px solid #C62828; border-radius: 6px; "
+                "background: #FFEBEE; color: #C62828;"
+            )
+        widget.setStyleSheet(error_style)
+        def reset():
+            try:
+                widget.setStyleSheet(default_style)
+                widget.setFocus()
+            except Exception:
+                pass
+        QTimer.singleShot(600, reset)
 
     def _reset_num_input_style(self):
         if hasattr(self, '_num_input'):
@@ -842,6 +1076,15 @@ class EntryView(QWidget):
 
     def _confirm_multiple(self, q: Question, q_idx: int):
         selected = [ans for cb, ans in self._checkboxes if cb.isChecked()]
+        if not selected:
+            if q.allows_empty:
+                self._confirm_answer(q, "", q_idx)
+            else:
+                self._flash_error(
+                    getattr(self, "_multi_num_input", None),
+                    "font-size: 16px; font-weight: bold; padding: 6px 10px; border: 2px solid #1565C0; border-radius: 6px; background: white;"
+                )
+            return
         self._confirm_answer(q, ",".join(selected), q_idx)
 
     def _confirm_multiple_by_number(self, q: Question, q_idx: int):
@@ -854,8 +1097,11 @@ class EntryView(QWidget):
                     selected.append(q.answers[n - 1])
             if selected:
                 self._confirm_answer(q, ",".join(selected), q_idx)
+            elif not text and q.allows_empty:
+                self._confirm_answer(q, "", q_idx)
         except ValueError:
-            pass
+            if not text and q.allows_empty:
+                self._confirm_answer(q, "", q_idx)
 
     def _go_to_question(self, q_idx: int):
         if q_idx < 0:

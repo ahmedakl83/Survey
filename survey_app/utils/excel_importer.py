@@ -135,6 +135,15 @@ def import_template_from_excel(file_path: str) -> Tuple[Template, List[str]]:
                 question_type=QuestionType.DEMOGRAPHIC_SINGLE_OTHER,
                 answers=answer_values
             )
+        elif type_num == 5:
+            if not answer_values:
+                warnings.append(f"السؤال '{header}' ديموغرافي متعدد مع أخرى لكن لا يحتوي على إجابات.")
+            q = Question(
+                column_index=col_idx,
+                text=header,
+                question_type=QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER,
+                answers=answer_values
+            )
         else:
             warnings.append(
                 f"السؤال '{header}': رقم النوع '{last}' غير معروف، تم تصنيفه كسؤال عام."
@@ -251,7 +260,7 @@ def import_responses_from_excel(
                 # سؤال عام: نأخذ القيمة كما هي
                 answers[q.id] = raw_str
 
-            elif q.question_type == QuestionType.DEMOGRAPHIC_MULTIPLE:
+            elif q.question_type in (QuestionType.DEMOGRAPHIC_MULTIPLE, QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER):
                 # متعدد: قد يكون "1,3" أو "1" أو "1 3"
                 # نحوّل كل رقم إلى نص الإجابة
                 # نقبل الفاصلة أو المسافة أو الشرطة كفاصل
@@ -272,8 +281,8 @@ def import_responses_from_excel(
                                 f"الرقم {num} خارج النطاق (1–{len(q.answers)})، تم تجاهله."
                             )
                     except (ValueError, TypeError):
-                        # ليس رقماً → نأخذه كنص مباشر إن كان موجوداً في الإجابات
-                        if part in q.answers:
+                        # ليس رقماً → نأخذه كنص مباشر إن كان موجوداً في الإجابات أو إن كان السؤال يقبل أخرى
+                        if part in q.answers or q.question_type == QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER:
                             selected.append(part)
                         else:
                             warnings.append(

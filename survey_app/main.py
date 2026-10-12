@@ -12,8 +12,9 @@ def main():
     # تعيين معرف التطبيق على ويندوز لضمان إظهار الأيقونة الخاصة به في شريط المهام وصينية النظام
     if sys.platform == 'win32':
         import ctypes
+        from build_info import APP_VERSION
         try:
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ccs.surveyapp.app.1.0.9")
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(f"ccs.surveyapp.app.{APP_VERSION}")
         except Exception:
             pass
 

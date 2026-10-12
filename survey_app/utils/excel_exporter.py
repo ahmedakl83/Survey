@@ -88,7 +88,7 @@ def _format_sheet(ws, session: Session, template: Template, mode: str):
                         display_value = idx + 1
                     except ValueError:
                         display_value = raw_answer
-                elif question.question_type == QuestionType.DEMOGRAPHIC_MULTIPLE:
+                elif question.question_type in (QuestionType.DEMOGRAPHIC_MULTIPLE, QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER):
                     # تحويل الإجابات المتعددة إلى أرقام مفصولة بفواصل
                     selected = [s.strip() for s in raw_answer.split(",") if s.strip()]
                     indices = []

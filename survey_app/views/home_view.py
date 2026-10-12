@@ -131,17 +131,27 @@ class HomeView(QWidget):
         self.maint_desc.setStyleSheet("color: #616161; font-size: 12px; border: none;")
         self.maint_layout.addWidget(self.maint_desc)
         self.maint_layout.addStretch()
- 
+
+        self.btn_backup_session = QPushButton(tr("btn_backup_session"))
+        self.btn_backup_session.setObjectName("btn_secondary")
+        self.btn_backup_session.clicked.connect(self._on_backup_session)
+        self.maint_layout.addWidget(self.btn_backup_session)
+
+        self.btn_import_session = QPushButton(tr("btn_import_session"))
+        self.btn_import_session.setObjectName("btn_secondary")
+        self.btn_import_session.clicked.connect(self._on_import_session)
+        self.maint_layout.addWidget(self.btn_import_session)
+
         self.btn_backup = QPushButton(tr("btn_backup"))
         self.btn_backup.setObjectName("btn_secondary")
         self.btn_backup.clicked.connect(self._on_backup)
         self.maint_layout.addWidget(self.btn_backup)
- 
+
         self.btn_restore = QPushButton(tr("btn_restore"))
         self.btn_restore.setObjectName("btn_danger")
         self.btn_restore.clicked.connect(self._on_restore)
         self.maint_layout.addWidget(self.btn_restore)
- 
+
         self.content_layout.addWidget(self.maint_frame)
         self.content_layout.addStretch()
 
@@ -197,6 +207,15 @@ class HomeView(QWidget):
         )
         self.cards_layout.addWidget(import_responses_card, 1, 1)
 
+        # بطاقة: استيراد جلسة
+        import_session_card = self._make_action_card(
+            tr("card_import_session_title"),
+            tr("card_import_session_desc"),
+            tr("card_import_session_btn"),
+            self._on_import_session
+        )
+        self.cards_layout.addWidget(import_session_card, 1, 2)
+
     def _make_action_card(self, title, description, btn_text, callback) -> QFrame:
         card = QFrame()
         card.setStyleSheet(
@@ -241,6 +260,8 @@ class HomeView(QWidget):
         self.recent_label.setText(tr("recent_templates"))
         self.maint_label.setText(tr("data_maintenance"))
         self.maint_desc.setText(tr("maintenance_desc"))
+        self.btn_backup_session.setText(tr("btn_backup_session"))
+        self.btn_import_session.setText(tr("btn_import_session"))
         self.btn_backup.setText(tr("btn_backup"))
         self.btn_restore.setText(tr("btn_restore"))
 
@@ -500,6 +521,130 @@ class HomeView(QWidget):
         )
         self.main_window.show_results()
  
+    def _on_backup_session(self):
+        sessions = self.db.load_all_sessions()
+        if not sessions:
+            QMessageBox.information(self, tr("choose_session_to_backup_title"), tr("no_sessions_to_backup"))
+            return
+
+        session_names = [s.name for s in sessions]
+        chosen_name, ok = QInputDialog.getItem(
+            self,
+            tr("choose_session_to_backup_title"),
+            tr("choose_session_to_backup_prompt"),
+            session_names,
+            0,
+            False
+        )
+        if not ok or not chosen_name:
+            return
+
+        session = next((s for s in sessions if s.name == chosen_name), None)
+        if not session:
+            return
+
+        template = self.db.load_template(session.template_id)
+        if not template:
+            QMessageBox.warning(self, tr("error"), tr("template_not_found"))
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("backup_session_save_title"),
+            f"{session.name}_backup.surveysession",
+            tr("session_backup_filter")
+        )
+        if not path:
+            return
+
+        try:
+            from utils.session_exporter import export_session_backup
+            export_session_backup(session, template, path)
+            QMessageBox.information(
+                self, tr("success"),
+                tr("backup_session_success_msg", path=path)
+            )
+        except Exception as e:
+            QMessageBox.critical(self, tr("error"), tr("backup_session_failed_msg", error=str(e)))
+
+    def _on_import_session(self):
+        from utils.session_exporter import read_session_backup_info, import_session_into_db
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, tr("import_session_title"), "",
+            tr("session_backup_filter")
+        )
+        if not path:
+            return
+
+        try:
+            info = read_session_backup_info(path)
+        except Exception as e:
+            QMessageBox.critical(self, tr("import_error"), f"{tr('import_session_invalid_file')}\n\n{e}")
+            return
+
+        s_name = info["session_name"]
+        existing = self.db.get_session_by_name(s_name)
+
+        overwrite_id = None
+        final_name = s_name
+
+        if existing:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle(tr("import_session_conflict_title"))
+            msg_box.setText(tr("import_session_conflict_msg", name=s_name))
+            msg_box.setIcon(QMessageBox.Icon.Question)
+
+            btn_replace = msg_box.addButton(tr("btn_replace_existing"), QMessageBox.ButtonRole.AcceptRole)
+            btn_new = msg_box.addButton(tr("btn_save_as_new"), QMessageBox.ButtonRole.ActionRole)
+            btn_cancel = msg_box.addButton(QMessageBox.StandardButton.Cancel)
+
+            msg_box.exec()
+            clicked = msg_box.clickedButton()
+
+            if clicked == btn_cancel:
+                return
+            elif clicked == btn_replace:
+                overwrite_id = existing.id
+                final_name = s_name
+            elif clicked == btn_new:
+                new_name, ok = QInputDialog.getText(
+                    self, tr("import_session_name_title"),
+                    tr("import_session_name_prompt"),
+                    text=f"{s_name} (مستوردة)"
+                )
+                if not ok or not new_name.strip():
+                    return
+                final_name = new_name.strip()
+        else:
+            new_name, ok = QInputDialog.getText(
+                self, tr("import_session_name_title"),
+                tr("import_session_name_prompt"),
+                text=s_name
+            )
+            if not ok or not new_name.strip():
+                return
+            final_name = new_name.strip()
+
+        try:
+            imported_session = import_session_into_db(
+                raw_data=info["raw_data"],
+                db=self.db,
+                custom_session_name=final_name,
+                overwrite_session_id=overwrite_id
+            )
+            self.refresh()
+            QMessageBox.information(
+                self, tr("import_session_success_title"),
+                tr("import_session_success_msg",
+                   name=imported_session.name,
+                   template=info["template_name"],
+                   total=imported_session.total_forms,
+                   completed=imported_session.completed_forms)
+            )
+            self.main_window.show_results()
+        except Exception as e:
+            QMessageBox.critical(self, tr("error"), tr("import_session_failed_msg", error=str(e)))
+
     def _on_backup(self):
         path, _ = QFileDialog.getSaveFileName(
             self, tr("backup_save_title"),

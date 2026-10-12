@@ -9,6 +9,7 @@ class QuestionType(IntEnum):
     DEMOGRAPHIC_MULTIPLE = 2  # ديموغرافي - إجابات متعددة
     LIKERT = 3        # ليكرت - إجابة واحدة
     DEMOGRAPHIC_SINGLE_OTHER = 4 # ديموغرافي - إجابة واحدة مع خيار أخرى
+    DEMOGRAPHIC_MULTIPLE_OTHER = 5 # ديموغرافي - إجابات متعددة مع خيار أخرى
 
 
 @dataclass
@@ -22,6 +23,7 @@ class Question:
     likert_scale_id: int = 0  # 0 = لا ينتمي لمقياس
     branching_rules: dict = field(default_factory=dict)  # خريطة: {نص_الإجابة: كائن_السؤال_المستهدف}
     section_header: str = ""  # عنوان الفاصل المقطعي إن وجد قبل هذا السؤال
+    is_required: bool = False # هل السؤال إجباري ولا يسمح بتركه فارغاً
 
     @property
     def is_general(self) -> bool:
@@ -37,7 +39,21 @@ class Question:
 
     @property
     def is_multiple_choice(self) -> bool:
-        return self.question_type == QuestionType.DEMOGRAPHIC_MULTIPLE
+        return self.question_type in (
+            QuestionType.DEMOGRAPHIC_MULTIPLE,
+            QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER
+        )
+
+    @property
+    def has_other_option(self) -> bool:
+        return self.question_type in (
+            QuestionType.DEMOGRAPHIC_SINGLE_OTHER,
+            QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER
+        )
+
+    @property
+    def allows_empty(self) -> bool:
+        return not self.is_required
 
     def get_type_label(self) -> str:
         from utils.translator import tr
@@ -47,6 +63,8 @@ class Question:
             QuestionType.DEMOGRAPHIC_MULTIPLE: tr("qtype_demographic_multiple"),
             QuestionType.LIKERT: tr("qtype_likert"),
             QuestionType.DEMOGRAPHIC_SINGLE_OTHER: tr("qtype_demographic_single_other"),
+            QuestionType.DEMOGRAPHIC_MULTIPLE_OTHER: tr("qtype_demographic_multiple_other"),
         }
         return labels.get(self.question_type, tr("qtype_unknown"))
+
 
